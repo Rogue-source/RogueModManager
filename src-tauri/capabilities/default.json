@@ -1,0 +1,24 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:default",
+    "shell:allow-open",
+    "fs:default",
+    "fs:allow-appcache-write-recursive",
+    "fs:allow-appcache-read-recursive",
+    "fs:allow-exists",
+    "fs:allow-stat",
+    {
+      "identifier": "http:default", 
+      "allow": [{ "url": "https://thunderstore.io/api/experimental/package/*" }]
+    },
+    {
+      "identifier": "fs:scope-appcache",
+      "allow": [{ "path": "$APPCACHE/**/*" }]
+    }
+  ]
+}

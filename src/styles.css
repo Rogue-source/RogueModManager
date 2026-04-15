@@ -1,0 +1,115 @@
+:root {
+  --bg-sidebar: #222831;
+  --bg-main: #393e46;
+  --text-white: #eeeeee;
+  --accent-teal: #00adb5;
+  --border-muted: #4e555f;
+}
+
+:global(body) {
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-white);
+  overflow: hidden;
+}
+
+.search-input {
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border-muted);
+  border-radius: 8px;
+  color: white;
+  padding: 10px 15px;
+  outline: none;
+  transition: border 0.2s;
+}
+
+.search-input:focus {
+  border-color: var(--accent-teal);
+}
+
+.mod-list-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mod-row {
+  background: var(--bg-sidebar);
+  padding: 15px 20px;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid transparent;
+  transition: border 0.2s, transform 0.1s;
+}
+
+.mod-row:hover {
+  border-color: var(--accent-teal);
+  transform: translateX(4px);
+}
+
+.m-name {
+  display: block;
+  font-weight: bold;
+  font-size: 1.1rem;
+  color: var(--text-white);
+}
+
+.m-author {
+  color: var(--accent-teal);
+  font-size: 0.85rem;
+}
+
+.btn-install {
+  background: var(--accent-teal);
+  border: none;
+  color: white;
+  padding: 8px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: filter 0.2s;
+}
+
+.btn-install:hover {
+  filter: brightness(1.2);
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border-muted);
+  border-top-color: var(--accent-teal);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-main);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-muted);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-teal);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden; 
+  background-color: var(--bg-main);
+}
