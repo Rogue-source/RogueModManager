@@ -1,9 +1,10 @@
 <script>
-  import "../styles.css";
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { activeModTab, selectedGame, globalMods, focusedMod, profileList, selectedProfile } from '$lib/store';
   import { invoke } from '@tauri-apps/api/core';
+  import { open } from '@tauri-apps/plugin-dialog';
+  import "$lib/PageStyles/LayoutPage.css";
 
   function returnToMenu() {
     globalMods.set([]);
@@ -16,6 +17,20 @@ let isLaunching = false;
 $: if ($selectedGame) {
     refreshProfiles();
 }
+
+$: if (showSettings) {
+    if ($selectedGame) {
+      // If we have a game but no path, try to find it silently while settings is open
+      if (!$selectedGame.executablePath) {
+        tempPath = "Not located. Click browse or launch the game to find it.";
+      } else {
+        tempPath = $selectedGame.executablePath;
+      }
+    } else {
+      tempPath = "Select a game first";
+    }
+  }
+  
 async function refreshProfiles() {
     if (!$selectedGame) return;
     try {
@@ -29,6 +44,39 @@ async function refreshProfiles() {
     }
   }
 
+  let showSettings = false;
+  let tempPath = "";
+
+  // Reactive: Update path display when modal opens or game changes
+  $: if (showSettings) {
+    if ($selectedGame) {
+      tempPath = $selectedGame.executablePath;
+    } else {
+      tempPath = "Please select a game first";
+    }
+  }
+
+  async function browseNewPath() {
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: 'Executable', extensions: ['exe'] }]
+    });
+    if (selected) tempPath = selected;
+  }
+
+  async function saveSettings() {
+    try {
+      await invoke('save_game_location', { 
+        slug: $selectedGame.slug, 
+        exePath: tempPath 
+      });
+      // Update the global store so the "Launch" button uses the new path
+      selectedGame.update(g => ({ ...g, executablePath: tempPath }));
+      showSettings = false;
+    } catch (e) {
+      alert("Save failed: " + e);
+    }
+  }
   async function addNewProfile() {
     const name = prompt("New Profile Name:");
     if (!name || name.trim() === "" || name.toLowerCase() === "default") return;
@@ -50,6 +98,7 @@ async function refreshProfiles() {
   
   let showDropdown = false;
   
+    // Close dropdown when clicking outside
   function closeDropdown(e) {
     if (showDropdown && !e.target.closest('.custom-select-container')) {
       showDropdown = false;
@@ -76,21 +125,54 @@ async function refreshProfiles() {
     }
   }
   
-    async function launchModdedGame() {
-    if (!$selectedGame || !$selectedGame.executablePath) {
-      console.error("Game executable path is not configured.");
-      return;
+  async function launchModdedGame() {
+    if (!$selectedGame) return;
+
+    let currentPath = $selectedGame.executablePath;
+
+    // 1. If path is missing, try Auto-Discovery first
+    if (!currentPath) {
+      try {
+        currentPath = await invoke('discover_game_path', { slug: $selectedGame.slug });
+        if (currentPath) {
+          await invoke('save_game_location', { slug: $selectedGame.slug, exePath: currentPath });
+          selectedGame.update(g => ({ ...g, executablePath: currentPath }));
+        }
+      } catch (e) {
+        console.log("Auto-discovery failed.");
+      }
     }
+
+    // 2. If STILL missing, prompt the user manually
+    if (!currentPath) {
+      const selected = await open({
+        multiple: false,
+        filters: [{ name: 'Executable', extensions: ['exe'] }],
+        title: `Locate ${$selectedGame.name} Executable to Launch`
+      });
+
+      if (selected) {
+        currentPath = selected;
+        await invoke('save_game_location', { slug: $selectedGame.slug, exePath: currentPath });
+        selectedGame.update(g => ({ ...g, executablePath: currentPath }));
+      } else {
+        return; // User cancelled, don't launch
+      }
+    }
+
+    // 3. Final Check & Launch
     isLaunching = true;
     try {
+		await open("steam://open/main");
+        await new Promise(resolve => setTimeout(resolve, 3000));
+		
       await invoke('launch_game', {
         projectName: "RogueModManager", 
         gameName: $selectedGame.id,
-        profileName: "default",
-        executablePath: $selectedGame.executablePath
+        profileName: $selectedProfile || "default",
+        executablePath: currentPath
       });
     } catch (e) {
-      console.error(e);
       alert("Launch failed: " + e);
     } finally {
       isLaunching = false;
@@ -169,13 +251,13 @@ async function refreshProfiles() {
 
         <div class="nav-label mt-20">OTHER</div>
         <button class="nav-item">Config editor</button>
-        <button class="nav-item">Settings</button>
+        <button class="nav-item" on:click={() => showSettings = true}>Settings</button>
         <button class="nav-item">Help</button>
       </nav>
     {:else}
       <nav class="nav-menu">
         <a href="/" class="nav-item active">Games</a>
-        <div class="nav-item">Settings</div>
+        <button class="nav-item" on:click={() => showSettings = true}>Settings</button>
       </nav>
     {/if}
   </aside>
@@ -184,254 +266,38 @@ async function refreshProfiles() {
     <slot />
   </main>
 </div>
+{#if showSettings}
+  <div class="settings-overlay">
+    <div class="settings-card">
+      <h2 style="margin-top: 0; color: #00adb5;">
+        {$selectedGame ? $selectedGame.name + " Settings" : "Global Settings"}
+      </h2>
+      
+      <div class="setting-item">
+        <label style="display: block; margin-bottom: 8px; color: #888;">Executable Path</label>
+        <div style="display: flex; gap: 10px;">
+          <input 
+            type="text" 
+            bind:value={tempPath} 
+            readonly={!$selectedGame}
+            style="flex: 1; background: #393E46; border: 1px solid #4e555f; color: {$selectedGame ? 'white' : '#888'}; padding: 8px; border-radius: 4px;" 
+          />
+          
+          {#if $selectedGame}
+            <button on:click={browseNewPath} style="background: #00adb5; border: none; color: white; padding: 8px 15px; border-radius: 4px; cursor: pointer;">Browse</button>
+          {/if}
+        </div>
+      </div>
 
-<style>
-.custom-select-container {
-    position: relative;
-    width: 100%;
-  }
-
-  .select-trigger {
-    width: 100%;
-    background: #393E46;
-    border: 1px solid #4e555f;
-    color: #eeeeee;
-    padding: 10px;
-    border-radius: 6px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    font-weight: bold;
-  }
-
-  .select-dropdown {
-    position: absolute;
-    top: calc(100% + 5px);
-    left: 0;
-    width: 100%;
-    background: #222831;
-    border: 1px solid #4e555f;
-    border-radius: 6px;
-    z-index: 100;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    overflow: hidden;
-  }
-
-  .options-list {
-    max-height: 200px;
-    overflow-y: auto;
-  }
-
-  .option-item {
-    display: flex;
-    align-items: center;
-    border-bottom: 1px solid #393E46;
-  }
-
-  .option-item:hover {
-    background: #393E46;
-  }
-
-  .option-name {
-    flex: 1;
-    background: none;
-    border: none;
-    color: #eeeeee;
-    padding: 10px;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .option-item.active .option-name {
-    color: #00adb5;
-    font-weight: bold;
-  }
-
-  .delete-btn {
-    background: none;
-    border: none;
-    padding: 10px;
-    cursor: pointer;
-    opacity: 0.6;
-    transition: opacity 0.2s;
-  }
-
-  .delete-btn:hover {
-    opacity: 1;
-  }
-
-  .add-profile-btn {
-    width: 100%;
-    background: #393E46;
-    border: none;
-    border-top: 1px solid #4e555f;
-    color: #00adb5;
-    padding: 10px;
-    cursor: pointer;
-    font-weight: bold;
-  }
-
-  .add-profile-btn:hover {
-    background: #4e555f;
-    color: #00fffb;
-  }
-
-  .chevron {
-    font-size: 0.7rem;
-    opacity: 0.7;
-  }
-  
-.launch-btn {
-    width: 100%;
-    margin-top: 10px;
-    background: #4caf50;
-    color: white;
-    border: none;
-    padding: 12px;
-    border-radius: 6px;
-    font-weight: bold;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    transition: background 0.2s;
-  }
-
-  .launch-btn:hover:not(:disabled) {
-    background: #45a049;
-  }
-
-  .launch-btn:disabled {
-    background: #4e555f;
-    cursor: not-allowed;
-    opacity: 0.7;
-  }
-
-/* Sidebar styles updated for labels */
-  .nav-label {
-    padding: 0 30px;
-    font-size: 0.7rem;
-    font-weight: 800;
-    color: #4e555f;
-    margin-bottom: 5px;
-    letter-spacing: 1px;
-  }
-  .mt-20 { margin-top: 20px; }
-  
-  .app-shell {
-    display: flex;
-    height: 100vh;
-    width: 100vw;
-    background-color: #393E46;
-    color: #eeeeee;
-  }
-
-  .sidebar {
-    width: 260px;
-    background-color: #222831;
-    display: flex;
-    flex-direction: column;
-    padding: 20px 0;
-    border-right: 1px solid #1a1a1a;
-  }
-
-  .brand {
-    font-size: 1.5rem;
-    font-weight: 800;
-    padding: 0 30px 30px;
-    letter-spacing: 2px;
-    color: #00adb5;
-  }
-
-  .nav-menu {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
-
-  .nav-item {
-    padding: 12px 30px;
-    text-decoration: none;
-    color: #888;
-    font-weight: 600;
-    transition: 0.2s;
-    background: none;
-    border: none;
-    text-align: left;
-    cursor: pointer;
-    font-size: 0.95rem;
-  }
-
-  .nav-item:hover, .nav-item.active {
-    color: #eeeeee;
-    background-color: #393E46;
-    border-left: 4px solid #00adb5;
-  }
-
-  .sidebar-section {
-    padding: 0 20px 20px;
-  }
-
-  .btn-game-home {
-    background: #393E46;
-    border: 1px solid #4e555f;
-    color: #eeeeee;
-    width: 100%;
-    padding: 10px;
-    border-radius: 6px;
-    text-align: left;
-    font-weight: bold;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .btn-game-home:hover {
-    border-color: #00adb5;
-  }
-
-  .main-content {
-    flex: 1;
-    overflow: hidden;
-  }
-  
-  .launch-btn {
-    width: 100%;
-    background: #4caf50; /* Green theme */
-    color: white;
-    border: none;
-    padding: 15px;
-    border-radius: 6px;
-    font-weight: bold;
-    font-size: 1.1rem;
-    cursor: pointer;
-    margin-top: 10px; /* Space below back button */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    transition: background 0.2s, transform 0.1s;
-  }
-
-  .launch-btn:hover:not(:disabled) {
-    background: #45a049;
-    transform: translateY(-1px);
-  }
-
-  .launch-btn:active:not(:disabled) {
-    transform: translateY(0);
-  }
-
-  .launch-btn:disabled {
-    background: #4e555f;
-    cursor: not-allowed;
-    opacity: 0.8;
-  }
-
-  .launch-icon {
-    font-size: 1.2rem;
-  }
-</style>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 30px;">
+        <button on:click={() => showSettings = false} style="background: transparent; border: 1px solid #4e555f; color: white; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
+          {$selectedGame ? 'Cancel' : 'Close'}
+        </button>
+        
+        {#if $selectedGame}
+          <button on:click={saveSettings} style="background: #00adb5; border: none; color: white; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold;">Save Changes</button>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}

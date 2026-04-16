@@ -7,6 +7,7 @@
     "core:default",
     "shell:default",
     "shell:allow-open",
+	"dialog:default",
     "fs:default",
     "fs:allow-appcache-write-recursive",
     "fs:allow-appcache-read-recursive",
@@ -18,7 +19,23 @@
     },
     {
       "identifier": "fs:scope-appcache",
-      "allow": [{ "path": "$APPCACHE/**/*" }]
+      "allow": [{ "path": "$CONFIG/**/*" }]
+    },
+	{
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "$CONFIG/RogueModManager/*" }]
+    },
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [{ "path": "$CONFIG/RogueModManager/*" }]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [{ "path": "$CONFIG/RogueModManager/*" }]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{ "path": "$CONFIG/RogueModManager/*" }]
     }
   ]
 }
