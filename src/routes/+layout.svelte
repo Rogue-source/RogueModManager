@@ -3,8 +3,8 @@
   import { goto } from '$app/navigation';
   import { activeModTab, selectedGame, globalMods, focusedMod, profileList, selectedProfile } from '$lib/store';
   import { invoke } from '@tauri-apps/api/core';
-  import { open as openUrl } from '@tauri-apps/plugin-shell';   // for URLs (steam:// etc.)
-  import { open as openDialog } from '@tauri-apps/plugin-dialog'; // for file/folder picker
+  import { open as openUrl } from '@tauri-apps/plugin-shell';
+  import { open as openDialog } from '@tauri-apps/plugin-dialog';
   import { onMount } from 'svelte';
   import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
   import "$lib/PageStyles/LayoutPage.css";
@@ -28,7 +28,6 @@ let showImportModal = false;
 let importProfileData = null;
   let currentImportCode = "";
 
-  // Poll for manual folder changes
   let pollInterval;
   $: if (showDropdown && $selectedGame) {
     clearInterval(pollInterval);
@@ -107,15 +106,12 @@ async function importProfileFromCode() {
       let list = await invoke('list_profiles', { 
         projectName: "RogueModManager", 
         gameName: $selectedGame.id 
-      });
-      
-      // Ensure Default always exists	  
+      }); 
       if (!list.includes("Default")) {
         list = ["Default", ...list];
       }
       profileList.set(list);
       
-      // Fallback to Default if current profile disappeared
       if (!$profileList.includes($selectedProfile)) {
         selectedProfile.set("Default");
       }
@@ -126,7 +122,6 @@ async function importProfileFromCode() {
     }
   }
 
-  // Reactive for settings
   $: if (showSettings) {
     if ($selectedGame) {
       tempPath = $selectedGame.executablePath || "Not located. Click browse...";
@@ -194,7 +189,6 @@ async function importProfileFromCode() {
     }
   }
 
-  // === New Modal Functions ===
   async function createProfileFromModal() {
     const name = newProfileName.trim();
     if (!name || name.toLowerCase() === "default") return;
@@ -220,7 +214,6 @@ async function importProfileFromCode() {
     importCode = "";
   }
 
-  // Launch with safety guard for null executablePath
   async function launchModdedGame() {
     if (!$selectedGame) return;
 
@@ -259,7 +252,6 @@ async function performProfileImport() {
   const profileName = "Imported_" + Date.now().toString().slice(-6);
 
   try {
-    // 1. Create the new profile
     await invoke('create_profile', { 
       projectName: "RogueModManager", 
       gameName: $selectedGame.id, 
@@ -269,18 +261,14 @@ async function performProfileImport() {
     await refreshProfiles();
     selectedProfile.set(profileName);
 
-    // 2. Import each mod one by one (using your existing download system)
     for (const mod of importProfileData.mods) {
-      // Simulate selecting the mod and triggering download
-      // We use the latest version for simplicity
       const modToDownload = {
         owner: mod.owner,
         name: mod.name,
         versions: [{ version_number: mod.version }]
       };
 
-      // Call your existing download logic (adjust if your function signature differs)
-      await downloadMod(modToDownload);   // This will use your dependency tree + install
+      await downloadMod(modToDownload);
     }
 
     showImportModal = false;

@@ -103,7 +103,7 @@ async function syncLoader() {
       projectName: "RogueModManager",
       gameName: $selectedGame.id,
       profileName: $selectedProfile,
-      executablePath: $selectedGame.executablePath   // now guaranteed to be string
+      executablePath: $selectedGame.executablePath
     });
   } catch (e) {
     console.error("Failed to sync loader:", e);
