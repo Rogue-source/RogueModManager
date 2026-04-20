@@ -12,7 +12,7 @@
     { id: 'repo', name: 'R.E.P.O', slug: 'repo', banner: 'https://cdn2.steamgriddb.com/thumb/9ca4292f040b141fd182d5028f27e503.jpg' },
     { id: 'subnautica', name: 'Subnautica', slug: 'subnautica', banner: 'https://cdn2.steamgriddb.com/thumb/ab85e1cac497d5d96978ca6a6a58a2ee.jpg' },
     { id: 'peak', name: 'PEAK', slug: 'peak', banner: 'https://cdn2.steamgriddb.com/thumb/b53b8b48c4b228b070851d52800bb9e1.jpg' },
-	{ id: 'lethal-company', name: 'Lethal Company', slug: 'lethalcompany', banner: 'https://cdn2.steamgriddb.com/thumb/196a5cad7254e133fbb226989034e460.jpg' },
+	{ id: 'lethal-company', name: 'Lethal Company', slug: 'lethal-company', banner: 'https://cdn2.steamgriddb.com/thumb/196a5cad7254e133fbb226989034e460.jpg' },
 	{ id: 'valheim', name: 'Valheim', slug: 'valheim', banner: 'https://cdn2.steamgriddb.com/thumb/15bae9fa92cfa7982d794811b05162c9.jpg' },
 	{ id: 'hollow-knight-silksong', name: 'Hollow Knight: Silksong', slug: 'hollow-knight-silksong', banner: 'https://cdn2.steamgriddb.com/thumb/48b505846f30602aaff7e2d336720e6d.jpg' },
 	{ id: 'muck', name: 'Muck', slug: 'muck', banner: 'https://cdn2.steamgriddb.com/thumb/dc823bed5df671ab204b95fe29f77ef5.jpg' },
@@ -202,7 +202,7 @@ async function saveFavorites() {
 
 <div class="games-view">
   <div class="header-container">
-    <h1 class="view-title">My Games</h1>
+    <h1 class="view-title">Communities</h1>
     <div class="search-wrapper">
       <input 
         type="text" 
@@ -214,7 +214,7 @@ async function saveFavorites() {
   </div>
 
   {#if favorites.length > 0}
-    <div class="section-header" on:click={() => expanded.favorites = !expanded.favorites}>
+    <div role="presentation" class="section-header" on:click={() => expanded.favorites = !expanded.favorites}>
       <span class="arrow {expanded.favorites ? 'down' : ''}">▶</span>
       <h2>Favorites</h2>
     </div>
@@ -230,7 +230,7 @@ async function saveFavorites() {
     {/if}
   {/if}
 
-  <div class="section-header" on:click={() => expanded.games = !expanded.games}>
+  <div role="presentation" class="section-header" on:click={() => expanded.games = !expanded.games}>
     <span class="arrow {expanded.games ? 'down' : ''}">▶</span>
     <h2>Games</h2>
   </div>

@@ -4,6 +4,88 @@ use std::process::Command;
 use std::fs;
 use tauri::Manager;
 use std::path::{Path};
+use reqwest;
+use zip::read::ZipArchive;
+use std::io::Cursor;
+
+#[derive(Serialize)]
+pub struct ProfileMod {
+    pub owner: String,
+    pub name: String,
+    pub version: String,
+    pub full_name: String,
+}
+
+#[tauri::command]
+async fn resolve_legacy_profile(code: String) -> Result<Vec<ProfileMod>, String> {
+    let url = format!("https://thunderstore.io/api/experimental/legacyprofile/get/{}", code);
+
+    let client = reqwest::Client::new();
+    let resp = client.get(&url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !resp.status().is_success() {
+        return Err(format!("HTTP error: {}", resp.status()));
+    }
+
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+
+    let mut text = String::from_utf8_lossy(&bytes).to_string();
+
+    if text.starts_with("#r2modman") {
+        text = text.split('\n').skip(1).collect::<Vec<_>>().join("\n").trim().to_string();
+    }
+
+    // Modern base64 API (removes deprecation warning)
+    use base64::{Engine, engine::general_purpose};
+    let zip_bytes = general_purpose::STANDARD
+        .decode(&text)
+        .map_err(|e| format!("Base64 Decode Error: {}", e))?;
+
+    let cursor = Cursor::new(zip_bytes);
+    let mut archive = ZipArchive::new(cursor).map_err(|e| format!("Zip Error: {}", e))?;
+
+    let mut export_content = String::new();
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+        if file.name() == "export.r2x" {
+            std::io::Read::read_to_string(&mut file, &mut export_content)
+                .map_err(|e| e.to_string())?;
+            break;
+        }
+    }
+
+    if export_content.is_empty() {
+        return Err("export.r2x not found in profile".into());
+    }
+
+    let lines: Vec<&str> = export_content.lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .collect();
+
+    let mut mods = Vec::new();
+
+    for line in lines {
+        let parts: Vec<&str> = line.split('-').collect();
+        if parts.len() >= 3 {
+            let name = parts.last().unwrap().to_string();
+            let owner = parts[1..parts.len()-1].join("-").replace(" name: ", "");
+            let version = parts[0].to_string();
+            
+            mods.push(ProfileMod {
+                owner,
+                name,
+                version,
+                full_name: line.to_string(),
+            });
+        }
+    }
+
+    Ok(mods)
+}
 
 #[tauri::command]
 async fn install_mod(
@@ -202,6 +284,9 @@ async fn launch_game(
     profile_name: String,
     executable_path: String,
 ) -> Result<(), String> {
+    // === NEW: Ensure Steam is running first ===
+    ensure_steam_running().await?;
+
     let mut profile_path = app_handle.path().config_dir().map_err(|e| e.to_string())?;
     profile_path.push(&project_name);
     profile_path.push(&game_name);
@@ -219,13 +304,12 @@ async fn launch_game(
 
     let exe_path = std::path::Path::new(&executable_path);
     if let Some(game_dir) = exe_path.parent() {
-        
-        // 1. Copy the proxy DLL (Try winhttp.dll first as it's the r2modman standard)
+        // 1. Copy the proxy DLL (winhttp.dll is the standard for BepInEx)
         let mut proxy_found = false;
         for proxy_name in ["winhttp.dll", "version.dll"] {
             let proxy_src = profile_path.join(proxy_name);
             if proxy_src.exists() {
-                let proxy_dest = game_dir.join("winhttp.dll"); // Try forcing winhttp first
+                let proxy_dest = game_dir.join("winhttp.dll");
                 fs::copy(&proxy_src, &proxy_dest).map_err(|e| e.to_string())?;
                 proxy_found = true;
                 break;
@@ -236,30 +320,55 @@ async fn launch_game(
             return Err("No proxy DLL found in profile folder.".into());
         }
 
-        // 2. Create the .doorstop_version file (some versions require this marker)
+        // 2. Create .doorstop_version marker
         let version_marker = game_dir.join(".doorstop_version");
         fs::write(&version_marker, "4.0.0.0").map_err(|e| e.to_string())?;
 
-        // 3. Write the config using the EXACT format from your uploaded file
+        // 3. Write doorstop_config.ini (exact format you already had)
         let config_dest = game_dir.join("doorstop_config.ini");
-        
-        // Doorstop requires backslashes for the path in the .ini file
         let preloader_str = preloader_path.to_str().unwrap().replace("/", "\\");
         
         let config_content = format!(
             "[General]\nenabled=true\ntarget_assembly={}\nredirect_output_log=false\n",
             preloader_str
         );
-        
         fs::write(&config_dest, config_content).map_err(|e| e.to_string())?;
     }
 
-    // 4. Launch with Environment Variables as a backup
+    // 4. Launch the game
     Command::new(&executable_path)
         .env("DOORSTOP_ENABLE", "TRUE")
         .env("DOORSTOP_INVOKE_DLL_PATH", preloader_path.to_str().unwrap())
         .spawn()
         .map_err(|e| format!("Failed to launch game: {}", e))?;
+
+    Ok(())
+}
+
+async fn ensure_steam_running() -> Result<(), String> {
+    // Check if Steam is already running
+    let output = Command::new("tasklist")
+        .args(["/FI", "IMAGENAME eq steam.exe", "/NH"])
+        .output()
+        .map_err(|e| format!("Failed to check Steam: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if stdout.contains("steam.exe") {
+        return Ok(()); // Steam is already running
+    }
+
+    // Steam is not running → start it silently
+    println!("Steam not detected. Starting Steam...");
+
+    let steam_path = r"C:\Program Files (x86)\Steam\steam.exe";
+    
+    let _ = Command::new(steam_path)
+        .arg("-silent")
+        .spawn()
+        .map_err(|e| format!("Failed to start Steam: {}", e))?;
+
+    // Wait for Steam to initialize (better than fixed delay in JS)
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
     Ok(())
 }
@@ -271,22 +380,29 @@ fn list_profiles(app_handle: tauri::AppHandle, project_name: String, game_name: 
     path.push(&game_name);
     path.push("profiles");
 
+    // Always ensure the profiles folder and Default profile exist
+    let _ = std::fs::create_dir_all(&path);
+    let default_path = path.join("Default");
+    let _ = std::fs::create_dir_all(&default_path);
+
     let mut profiles = vec!["Default".to_string()];
-    
+
     if let Ok(entries) = std::fs::read_dir(&path) {
         for entry in entries.flatten() {
             if entry.path().is_dir() {
                 if let Ok(name) = entry.file_name().into_string() {
-                    // Check case-insensitively to prevent "default" and "Default" duplicates
-                    if name.to_lowercase() != "default" { 
-                        profiles.push(name); 
+                    // Prevent duplicate "Default" (case-insensitive)
+                    if name.to_lowercase() != "default" {
+                        profiles.push(name);
                     }
                 }
             }
         }
-    } else {
-        let _ = std::fs::create_dir_all(&path);
     }
+
+    profiles.sort();
+    profiles.dedup();
+
     profiles
 }
 
@@ -344,6 +460,7 @@ pub struct ModManifestEntry {
     pub versionNumber: ModVersion,
     pub enabled: bool,
     pub dependencies: Vec<String>,
+	pub icon: Option<String>,
 }
 
 fn parse_version(v: &str) -> ModVersion {
@@ -394,10 +511,6 @@ fn sync_profile_loader(app_handle: tauri::AppHandle, project_name: String, game_
         target_assembly.to_string_lossy()
     );
     std::fs::write(ini_path, ini_content).map_err(|e| e.to_string())?;
-
-    // 2. Ensure winhttp.dll exists (Copy from a 'resources' or 'base' folder if needed)
-    // For now, we assume it's already there from the initial setup/install
-    
     Ok(())
 }
 
@@ -431,7 +544,8 @@ async fn register_mod_install(
     mod_id: String, 
     author: String, 
     version: String, 
-    deps: Vec<String>
+    deps: Vec<String>,
+	icon: Option<String>
 ) -> Result<(), String> {
     let mut path = app_handle.path().config_dir().unwrap();
     path.push(&project_name); path.push(&game_name); path.push("profiles"); path.push(&profile_name);
@@ -450,6 +564,7 @@ async fn register_mod_install(
         versionNumber: parse_version(&version),
         enabled: true,
         dependencies: deps,
+		icon,
     });
 
     let yaml = serde_yaml::to_string(&mods).map_err(|e| e.to_string())?;
@@ -468,6 +583,7 @@ fn main() {
             install_mod,
             get_installed_mods,
 			toggle_mod_status,
+			resolve_legacy_profile,
             register_mod_install,
             launch_game,
 			sync_profile_loader,

@@ -23,7 +23,7 @@ import {
 });
 
   let modSearch = "";
-
+  let installedSearch = "";
   let readmeContent = "Loading...";
   let changelogContent = "Loading...";
   let hasChangelog = false; 
@@ -39,22 +39,25 @@ import {
     gfm: true
   });
 
-  $: filteredMods = $globalMods.filter(m => {
-    const nameMatch = m.name.toLowerCase().includes(modSearch.toLowerCase());
-    const ownerMatch = m.owner.toLowerCase().includes(modSearch.toLowerCase());
-    const matchesSearch = nameMatch || ownerMatch;
-
-    if ($activeModTab === 'installed') return matchesSearch && m.isInstalled;
-    return matchesSearch;
-  });
+$: filteredMods = $globalMods.filter(m => {
+  const nameMatch = m.name.toLowerCase().includes(modSearch.toLowerCase());
+  const ownerMatch = m.owner.toLowerCase().includes(modSearch.toLowerCase());
+  const matchesSearch = nameMatch || ownerMatch;
+  return matchesSearch;
+});
 
   $: totalPages = Math.ceil(filteredMods.length / modsPerPage) || 1;
   $: paginatedMods = filteredMods.slice(
     (currentPage - 1) * modsPerPage,
     currentPage * modsPerPage
   );
+  $: filteredInstalledMods = installedMods.filter(m => {
+  const nameMatch = (m.name || '').toLowerCase().includes(installedSearch.toLowerCase());
+  const ownerMatch = (m.authorName || m.author || '').toLowerCase().includes(installedSearch.toLowerCase());
+  return nameMatch || ownerMatch;
+});
 
-  $: if (modSearch || $activeModTab) currentPage = 1;
+  $: if (modSearch || $activeModTab === 'online') currentPage = 1;
 
   activeModTab.subscribe(() => focusedMod.set(null));
 
@@ -70,36 +73,42 @@ import {
   
   let installedMods = [];
 
-  $: if ($selectedProfile || $activeModTab === 'installed') {
+  $: if ($selectedProfile && $activeModTab === 'installed') {
 	syncLoader();
     fetchInstalledMods();
   }
 
-  async function fetchInstalledMods() {
-    if (!$selectedGame) return;
-    try {
-      installedMods = await invoke('get_installed_mods', {
-        projectName: "RogueModManager",
-        gameName: $selectedGame.id,
-        profileName: $selectedProfile
-      });
-    } catch (e) {
-      console.error("Failed to fetch installed mods:", e);
-    }
+async function fetchInstalledMods() {
+  if (!$selectedGame || !$selectedProfile) return;
+
+  try {
+    installedMods = await invoke('get_installed_mods', {
+      projectName: "RogueModManager",
+      gameName: $selectedGame.id,
+      profileName: $selectedProfile
+    });
+  } catch (e) {
+    console.error("Failed to fetch installed mods:", e);
+    installedMods = [];
   }
+}
 
 async function syncLoader() {
-    try {
-      await invoke('sync_profile_loader', {
-        projectName: "RogueModManager",
-        gameName: $selectedGame.id,
-        profileName: $selectedProfile,
-        executablePath: $selectedGame.executablePath
-      });
-    } catch (e) {
-      console.error("Failed to sync loader:", e);
-    }
+  if (!$selectedGame || !$selectedGame.executablePath) {
+    return;
   }
+
+  try {
+    await invoke('sync_profile_loader', {
+      projectName: "RogueModManager",
+      gameName: $selectedGame.id,
+      profileName: $selectedProfile,
+      executablePath: $selectedGame.executablePath   // now guaranteed to be string
+    });
+  } catch (e) {
+    console.error("Failed to sync loader:", e);
+  }
+}
   
   async function handleToggle(modId, currentState) {
     try {
@@ -162,7 +171,8 @@ async function syncLoader() {
           download_url: data.download_url,
           fullName: `${owner}-${name}-${version}`,
           modId,
-          rawDeps: data.dependencies || []
+          rawDeps: data.dependencies || [],
+		  icon: data.icon || data.latest?.icon || null
         });
         if (data.dependencies) toProcess.push(...data.dependencies);
       }
@@ -180,11 +190,9 @@ async function syncLoader() {
     let updatesFound = [];
     for (const mod of installed) {
       const parts = mod.name.split('-');
-const pkgName = parts.slice(1).join('-');
+	  const pkgName = parts.slice(1).join('-');
 
-const res = await tauriFetch(
-  `https://thunderstore.io/api/experimental/package/${mod.authorName}/${pkgName}/`
-);
+		const res = await tauriFetch(`https://thunderstore.io/api/experimental/package/${mod.authorName}/${pkgName}/`);
       if (res.ok) {
         const data = await res.json();
         if (isUpdateAvailable(mod.versionNumber, data.latest.version_number)) {
@@ -310,7 +318,8 @@ if (!modToUse.owner && pkgName.includes('-')) {
         download_url: versionData.download_url,
         fullName: `${author}-${pkgName}-${versionToUse}`,
         modId: `${author}-${pkgName}`,
-        rawDeps: versionData.dependencies || []
+        rawDeps: versionData.dependencies || [],
+		icon: versionData.icon || versionData.latest?.icon || null
       });
 
       for (const mod of allToInstall) {
@@ -331,7 +340,8 @@ if (!modToUse.owner && pkgName.includes('-')) {
           modId: mod.modId,
           author: mod.owner || mod.authorName || author,
           version: mod.version,
-          deps: mod.rawDeps
+          deps: mod.rawDeps,
+		  icon: mod.icon || null
         });
       }
 
@@ -373,73 +383,88 @@ if (!modToUse.owner && pkgName.includes('-')) {
     
     <div class="list-column">
       <header class="mod-toolbar">
-        <input 
-          type="text" 
-          placeholder="Search Thunderstore..." 
-          class="search-bar" 
-          bind:value={modSearch} 
-        />
-   
-        <button class="tool-btn">Sort</button>
-        <button class="tool-btn">Filter</button>
-      </header>
+  {#if $activeModTab === 'online'}
+    <input 
+      type="text" 
+      placeholder="Search Thunderstore..." 
+      class="search-bar" 
+      bind:value={modSearch} 
+    />
+  {:else if $activeModTab === 'installed'}
+    <input 
+      type="text" 
+      placeholder="Search installed mods..." 
+      class="search-bar" 
+      bind:value={installedSearch} 
+    />
+  {/if}
 
-      <div class="mod-scroll-area">
-        {#if paginatedMods.length > 0}
-          {#each paginatedMods as mod}
-            <div 
-              class="mod-row {$focusedMod?.full_name === mod.full_name ? 'focused' : ''}" 
-              on:click={() => selectMod(mod)}
-            >
-              <img src={mod.versions[0]?.icon} alt="" class="mod-icon-small" />
-              <div class="mod-text">
-                <span class="mod-title-small">{mod.name}</span>
-                <span class="mod-author-small">by {mod.owner}</span>
-              </div>
-            </div>
-          {/each}
-        {:else}
-          <div class="empty-state-msg">
-{#if $activeModTab === 'installed'}
-  <div class="mod-list">
-    {#each installedMods as mod}
-      <div class="mod-card" on:click={() => focusedMod.set(mod)}>
-        <div class="mod-info">
-          <div class="mod-header-row">
-            <h3 class="mod-title">{mod.name}</h3>
-            
-            <label class="switch" on:click|stopPropagation>
-              <input 
-                type="checkbox" 
-                checked={mod.enabled} 
-                on:change={() => handleToggle(mod.name, mod.enabled)}
-              >
-              <span class="slider round"></span>
-            </label>
-          </div>
-          
-          <p class="mod-author">by {mod.authorName || 'Unknown'}</p>
-          
-          <div class="mod-meta">
-            <span class="version-tag">v{mod.versionNumber.major}.{mod.versionNumber.minor}.{mod.versionNumber.patch}</span>
-            {#if mod.enabled}
-              <span class="status-tag enabled">Active</span>
-            {:else}
-              <span class="status-tag disabled">Disabled</span>
-            {/if}
+  <button class="tool-btn">Sort</button>
+  <button class="tool-btn">Filter</button>
+</header>
+
+<div class="mod-scroll-area">
+  {#if $activeModTab === 'online'}
+    {#if paginatedMods.length > 0}
+      {#each paginatedMods as mod}
+        <div 
+          role="presentation" class="mod-row {$focusedMod?.full_name === mod.full_name ? 'focused' : ''}" 
+          on:click={() => selectMod(mod)}
+        >
+          <img src={mod.versions[0]?.icon} alt="" class="mod-icon-small" />
+          <div class="mod-text">
+            <span class="mod-title-small">{mod.name}</span>
+            <span class="mod-author-small">by {mod.owner}</span>
           </div>
         </div>
+      {/each}
+    {:else}
+      <div class="empty-state-msg">
+        No online mods found.
+      </div>
+    {/if}
+
+{:else if $activeModTab === 'installed'}
+  {#if filteredInstalledMods.length > 0}
+    {#each filteredInstalledMods as mod}
+      <div 
+        role="presentation" class="mod-row {$focusedMod?.name === mod.name ? 'focused' : ''}" 
+        on:click={() => focusedMod.set(mod)}
+      >
+        <img src={mod.icon} alt="" class="mod-icon-small" />
+        <div class="mod-text">
+          <span class="mod-title-small">{mod.name}</span>
+          <span class="mod-author-small">by {mod.authorName || 'Unknown'}</span>
+        </div>
+
+        <!-- Toggle switch stays on the far right -->
+        <label class="switch" on:click|stopPropagation>
+          <input 
+            type="checkbox" 
+            checked={mod.enabled} 
+            on:change={() => handleToggle(mod.name, mod.enabled)}
+          >
+          <span class="slider round"></span>
+        </label>
       </div>
     {/each}
-	{#if installedMods.length === 0}
-      <button class="browse-btn" on:click={() => activeModTab.set('online')}>Browse Online</button>
-    {/if}
-  </div>
-{/if}		
-          </div>
-        {/if}
-      </div>
+  {:else}
+    <div class="empty-state-msg">
+      {#if installedMods.length === 0}
+        No mods installed yet.
+      {:else}
+        No installed mods match your search.
+      {/if}
+    </div>
+  {/if}
 
+  {#if installedMods.length === 0}
+    <button class="browse-btn" on:click={() => activeModTab.set('online')}>Browse Online</button>
+  {/if}
+{/if}
+
+</div>
+	{#if $activeModTab === 'online'}
       <footer class="pagination-bar">
         <button 
           class="page-btn" 
@@ -460,6 +485,7 @@ if (!modToUse.owner && pkgName.includes('-')) {
           Next
         </button>
       </footer>
+	  {/if}
     </div>
 
     {#if $activeModTab === 'online' && $focusedMod}
@@ -524,8 +550,8 @@ if (!modToUse.owner && pkgName.includes('-')) {
 {/if}
 
 	{#if showDownloadModal && $focusedMod}
-  <div class="modal-backdrop" on:click={toggleDownloadModal}>
-    <div class="download-modal" on:click|stopPropagation>
+  <div role="presentation" class="modal-backdrop" on:click={toggleDownloadModal}>
+    <div role="presentation" class="download-modal" on:click|stopPropagation>
       <h2 class="modal-title">Select a version of {$focusedMod.name} to download</h2>
       <div class="modal-divider"></div>
       
