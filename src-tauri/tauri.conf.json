@@ -12,9 +12,9 @@
   "app": {
     "windows": [
       {
-        "title": "rogue",
-        "width": 1920,
-        "height": 1080
+        "title": "RMM",
+        "width": 800,
+        "height": 500
       }
     ],
     "security": {

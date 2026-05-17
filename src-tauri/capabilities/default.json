@@ -2,17 +2,23 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "shell:default",
+	"clipboard-manager:allow-write-text",
     {
-  "identifier": "shell:allow-open",
-  "allow": [
-    { "regex": "^(https?|steam|mailto|tel)://.+" }
-  ]
-},
+      "identifier": "shell:allow-open",
+      "allow": [
+        {
+          "regex": "^(https?|steam|mailto|tel)://.+"
+        }
+      ]
+    },
     "dialog:default",
+	
     "fs:default",
     "fs:allow-appcache-write-recursive",
     "fs:allow-appcache-read-recursive",
@@ -20,27 +26,52 @@
     "fs:allow-stat",
     {
       "identifier": "http:default",
-      "allow": [{ "url": "https://thunderstore.io/api/experimental/package/*" }]
+      "allow": [
+        {
+          "url": "https://thunderstore.io/api/experimental/*"
+        }
+      ]
     },
     {
       "identifier": "fs:scope-appcache",
-      "allow": [{ "path": "$CONFIG/**/*" }]
+      "allow": [
+        {
+          "path": "$CONFIG/**/*"
+        }
+      ]
     },
     {
       "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "$CONFIG/RogueModManager/*" }]
+      "allow": [
+        {
+          "path": "$CONFIG/RogueModManager/*"
+        }
+      ]
     },
     {
       "identifier": "fs:allow-read-text-file",
-      "allow": [{ "path": "$CONFIG/RogueModManager/*" }]
+      "allow": [
+        {
+          "path": "$CONFIG/RogueModManager/*"
+        }
+      ]
     },
     {
       "identifier": "fs:allow-exists",
-      "allow": [{ "path": "$CONFIG/RogueModManager/*" }]
+      "allow": [
+        {
+          "path": "$CONFIG/RogueModManager/*"
+        }
+      ]
     },
     {
       "identifier": "fs:allow-mkdir",
-      "allow": [{ "path": "$CONFIG/RogueModManager/*" }]
-    }
+      "allow": [
+        {
+          "path": "$CONFIG/RogueModManager/*"
+        }
+      ]
+    },
+    "clipboard-manager:default"
   ]
 }

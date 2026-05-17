@@ -22,6 +22,18 @@ import {
   checkForUpdates();
 });
 
+// --- Filter State Variables ---
+  let showFilterPanel = false;
+  
+  // Use arrays for multi-select
+  let selectedTypes: string[] = ["Mods"]; // Default: show only Mods
+  let selectedCategories: string[] = [];  // Empty means "Show All"
+  
+  let filterSort = "Last Updated"; 
+  let showDeprecated = false;
+  let showTags = true;
+  let availableCategories: string[] = [];
+  
   let modSearch = "";
   let installedSearch = "";
   let readmeContent = "Loading...";
@@ -58,6 +70,17 @@ $: filteredMods = $globalMods.filter(m => {
 });
 
   $: if (modSearch || $activeModTab === 'online') currentPage = 1;
+  $: paginatedMods = filteredMods.slice(
+    (currentPage - 1) * modsPerPage,
+    currentPage * modsPerPage
+  );
+  $: filteredInstalledMods = installedMods.filter(m => {
+  const nameMatch = (m.name || '').toLowerCase().includes(installedSearch.toLowerCase());
+  const ownerMatch = (m.authorName || m.author || '').toLowerCase().includes(installedSearch.toLowerCase());
+  return nameMatch || ownerMatch;
+});
+
+  $: if (modSearch || $activeModTab === 'online') currentPage = 1;
 
   activeModTab.subscribe(() => focusedMod.set(null));
 
@@ -77,6 +100,115 @@ $: filteredMods = $globalMods.filter(m => {
 	syncLoader();
     fetchInstalledMods();
   }
+
+  // Dynamically extract unique categories from Thunderstore data
+$: if ($globalMods && $globalMods.length > 0) {
+    const catSet = new Set<string>();
+    $globalMods.forEach(m => {
+      if (m.categories) m.categories.forEach(c => catSet.add(c));
+    });
+    catSet.delete("Modpacks"); // Handled by selectedTypes
+    availableCategories = Array.from(catSet).sort();
+  }
+
+  // Reset to page 1 whenever any filter or search changes
+$: if (modSearch || installedSearch || selectedTypes.length || filterSort || selectedCategories.length || showDeprecated !== null || $activeModTab) {
+    currentPage = 1;
+  }
+  
+  function toggleType(type: string) {
+    if (selectedTypes.includes(type)) {
+      selectedTypes = selectedTypes.filter(t => t !== type);
+    } else {
+      selectedTypes = [...selectedTypes, type];
+    }
+  }
+  
+  function toggleCategory(cat: string) {
+    if (selectedCategories.includes(cat)) {
+      selectedCategories = selectedCategories.filter(c => c !== cat);
+    } else {
+      selectedCategories = [...selectedCategories, cat];
+    }
+  }
+
+  // --- Online Mods Filtering & Sorting ---
+$: filteredMods = $globalMods.filter(m => {
+    // 1. Search
+    const nameMatch = m.name.toLowerCase().includes(modSearch.toLowerCase());
+    const ownerMatch = m.owner.toLowerCase().includes(modSearch.toLowerCase());
+    if (!nameMatch && !ownerMatch) return false;
+
+    // 2. Deprecated Check
+    if (!showDeprecated && m.is_deprecated) return false;
+
+    // 3. Type Check (Multi-select)
+    const isModpack = m.categories?.includes("Modpacks");
+    const modType = isModpack ? "Modpacks" : "Mods";
+    if (selectedTypes.length > 0 && !selectedTypes.includes(modType)) return false;
+
+    // 4. Category Check (Multi-select: Mod must have at least ONE of the selected categories)
+    if (selectedCategories.length > 0) {
+      const hasMatch = selectedCategories.some(cat => m.categories?.includes(cat));
+      if (!hasMatch) return false;
+    }
+
+    return true;
+  }).sort((a, b) => {
+    if (filterSort === "Last Updated") {
+      return new Date(b.date_updated).getTime() - new Date(a.date_updated).getTime();
+    } else if (filterSort === "Alphabetical") {
+      return a.name.localeCompare(b.name);
+    } else if (filterSort === "Download count") {
+      return (b.downloads || 0) - (a.downloads || 0);
+    } else if (filterSort === "Rating") {
+      return (b.rating_score || 0) - (a.rating_score || 0);
+    }
+    return 0;
+  });
+
+  $: filteredInstalledMods = installedMods.filter(m => {
+    const nameMatch = (m.name || '').toLowerCase().includes(installedSearch.toLowerCase());
+    const ownerMatch = (m.authorName || m.author || '').toLowerCase().includes(installedSearch.toLowerCase());
+    if (!nameMatch && !ownerMatch) return false;
+
+    const globalMeta = $globalMods.find(g => g.name === m.name && g.owner === (m.authorName || m.author));
+    
+    // Deprecated
+    const isDeprecated = globalMeta ? globalMeta.is_deprecated : false;
+    if (!showDeprecated && isDeprecated) return false;
+
+    // Type Check
+    const categories = globalMeta?.categories || [];
+    const isModpack = categories.includes("Modpacks");
+    const modType = isModpack ? "Modpacks" : "Mods";
+    if (selectedTypes.length > 0 && !selectedTypes.includes(modType)) return false;
+    
+    // Category Check
+    if (selectedCategories.length > 0) {
+      const hasMatch = selectedCategories.some(cat => categories.includes(cat));
+      if (!hasMatch) return false;
+    }
+
+    return true;
+  }).sort((a, b) => {
+    const globalA = $globalMods.find(g => g.name === a.name && g.owner === (a.authorName || a.author));
+    const globalB = $globalMods.find(g => g.name === b.name && g.owner === (b.authorName || b.author));
+
+    if (filterSort === "Last Updated") {
+      const dateA = globalA?.date_updated ? new Date(globalA.date_updated).getTime() : 0;
+      const dateB = globalB?.date_updated ? new Date(globalB.date_updated).getTime() : 0;
+      return dateB - dateA;
+    } else if (filterSort === "Alphabetical") {
+      return (a.name || "").localeCompare(b.name || "");
+    } else if (filterSort === "Download count") {
+      return (globalB?.downloads || 0) - (globalA?.downloads || 0);
+    } else if (filterSort === "Rating") {
+      return (globalB?.rating_score || 0) - (globalA?.rating_score || 0);
+    }
+    return 0;
+  });
+
 
 async function fetchInstalledMods() {
   if (!$selectedGame || !$selectedProfile) return;
@@ -103,7 +235,7 @@ async function syncLoader() {
       projectName: "RogueModManager",
       gameName: $selectedGame.id,
       profileName: $selectedProfile,
-      executablePath: $selectedGame.executablePath
+      executablePath: $selectedGame.executablePath   // now guaranteed to be string
     });
   } catch (e) {
     console.error("Failed to sync loader:", e);
@@ -382,25 +514,16 @@ if (!modToUse.owner && pkgName.includes('-')) {
   <div class="manager-layout">
     
     <div class="list-column">
-      <header class="mod-toolbar">
+<header class="mod-toolbar">
   {#if $activeModTab === 'online'}
-    <input 
-      type="text" 
-      placeholder="Search Thunderstore..." 
-      class="search-bar" 
-      bind:value={modSearch} 
-    />
+    <input type="text" placeholder="Search Thunderstore..." class="search-bar" bind:value={modSearch} />
   {:else if $activeModTab === 'installed'}
-    <input 
-      type="text" 
-      placeholder="Search installed mods..." 
-      class="search-bar" 
-      bind:value={installedSearch} 
-    />
+    <input type="text" placeholder="Search installed mods..." class="search-bar" bind:value={installedSearch} />
   {/if}
 
-  <button class="tool-btn">Sort</button>
-  <button class="tool-btn">Filter</button>
+  <button class="tool-btn" on:click={() => showFilterPanel = true}>
+    Filter & Sort
+  </button>
 </header>
 
 <div class="mod-scroll-area">
@@ -408,60 +531,91 @@ if (!modToUse.owner && pkgName.includes('-')) {
     {#if paginatedMods.length > 0}
       {#each paginatedMods as mod}
         <div 
-          role="presentation" class="mod-row {$focusedMod?.full_name === mod.full_name ? 'focused' : ''}" 
+          role="presentation" 
+          class="mod-row {$focusedMod?.full_name === mod.full_name ? 'focused' : ''}" 
           on:click={() => selectMod(mod)}
         >
           <img src={mod.versions[0]?.icon} alt="" class="mod-icon-small" />
-          <div class="mod-text">
+          
+          <div class="mod-info-stacked">
             <span class="mod-title-small">{mod.name}</span>
             <span class="mod-author-small">by {mod.owner}</span>
+          </div>
+
+          <div class="mod-meta-section">
+            {#if showTags}
+              <div class="mod-tags-group">
+                {#if mod.is_deprecated}
+                  <span class="ui-tag tag-red">Deprecated</span>
+                {/if}
+                {#if mod.categories?.includes("Modpacks")}
+                  <span class="ui-tag tag-yellow">Modpack</span>
+                {:else}
+                  <span class="ui-tag tag-green">Mod</span>
+                {/if}
+				<span class="ui-tag tag-grey">v{mod.versions[0]?.version_number}</span>
+              </div>
+            {/if}
           </div>
         </div>
       {/each}
     {:else}
+      <div class="empty-state-msg">No online mods found.</div>
+    {/if}
+
+  {:else if $activeModTab === 'installed'}
+    {#if filteredInstalledMods.length > 0}
+      {#each filteredInstalledMods as mod}
+        {@const globalMeta = $globalMods.find(g => g.name === mod.name && g.owner === (mod.authorName || mod.author))}
+        <div 
+          role="presentation" 
+          class="mod-row {$focusedMod?.name === mod.name ? 'focused' : ''}" 
+          on:click={() => focusedMod.set(mod)}>
+          <img src={mod.icon} alt="" class="mod-icon-small" />
+          
+          <div class="mod-info-stacked">
+            <span class="mod-title-small">{mod.name}</span>
+            <span class="mod-author-small">by {mod.authorName || 'Unknown'}</span>
+          </div>
+
+          <div class="mod-meta-section">
+            {#if showTags && globalMeta}
+              <div class="mod-tags-group">
+                {#if globalMeta.is_deprecated}
+                  <span class="ui-tag tag-red">Deprecated</span>
+                {/if}
+                {#if globalMeta.categories?.includes("Modpacks")}
+                  <span class="ui-tag tag-yellow">Modpack</span>
+                {:else}
+                  <span class="ui-tag tag-green">Mod</span>
+                {/if}
+              </div>
+            {/if}
+          </div>
+
+          <div class="mod-action-section">
+            <label class="switch" on:click|stopPropagation>
+              <input type="checkbox" checked={mod.enabled} on:change={() => handleToggle(mod.name, mod.enabled)}>
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </div>
+      {/each}
+
+    {:else}
       <div class="empty-state-msg">
-        No online mods found.
+        {#if installedMods.length === 0}
+          No mods installed yet.
+        {:else}
+          No installed mods match your search.
+        {/if}
       </div>
     {/if}
 
-{:else if $activeModTab === 'installed'}
-  {#if filteredInstalledMods.length > 0}
-    {#each filteredInstalledMods as mod}
-      <div 
-        role="presentation" class="mod-row {$focusedMod?.name === mod.name ? 'focused' : ''}" 
-        on:click={() => focusedMod.set(mod)}
-      >
-        <img src={mod.icon} alt="" class="mod-icon-small" />
-        <div class="mod-text">
-          <span class="mod-title-small">{mod.name}</span>
-          <span class="mod-author-small">by {mod.authorName || 'Unknown'}</span>
-        </div>
-
-        <!-- Toggle switch stays on the far right -->
-        <label class="switch" on:click|stopPropagation>
-          <input 
-            type="checkbox" 
-            checked={mod.enabled} 
-            on:change={() => handleToggle(mod.name, mod.enabled)}
-          >
-          <span class="slider round"></span>
-        </label>
-      </div>
-    {/each}
-  {:else}
-    <div class="empty-state-msg">
-      {#if installedMods.length === 0}
-        No mods installed yet.
-      {:else}
-        No installed mods match your search.
-      {/if}
-    </div>
+    {#if installedMods.length === 0}
+      <button class="browse-btn" on:click={() => activeModTab.set('online')}>Browse Online</button>
+    {/if}
   {/if}
-
-  {#if installedMods.length === 0}
-    <button class="browse-btn" on:click={() => activeModTab.set('online')}>Browse Online</button>
-  {/if}
-{/if}
 
 </div>
 	{#if $activeModTab === 'online'}
@@ -582,6 +736,67 @@ if (!modToUse.owner && pkgName.includes('-')) {
             {downloadStatus}
           </span>
         {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+{#if showFilterPanel}
+  <div class="modal-backdrop" role="presentation" on:click={() => showFilterPanel = false}>
+    <div class="filter-modal" on:click|stopPropagation>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3 style="margin: 0; color: #00adb5;">Filter & Sort</h3>
+        <button class="close-btn" style="background: none; border: none; color: #888; font-size: 20px; cursor: pointer;" on:click={() => showFilterPanel = false}>×</button>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label">Sort By</label>
+        <select class="filter-select" bind:value={filterSort}>
+          <option value="Last Updated">Last Updated</option>
+          <option value="Alphabetical">Alphabetical</option>
+          <option value="Download count">Download Count</option>
+          <option value="Rating">Rating</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label">Type</label>
+        <div class="checkbox-list">
+          <label class="checkbox-label">
+            <input type="checkbox" checked={selectedTypes.includes('Mods')} on:change={() => toggleType('Mods')} />
+            Mods
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" checked={selectedTypes.includes('Modpacks')} on:change={() => toggleType('Modpacks')} />
+            Modpacks
+          </label>
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <label class="filter-label">Category</label>
+        <div class="checkbox-list scrollable-list">
+          {#each availableCategories as cat}
+            <label class="checkbox-label">
+              <input type="checkbox" checked={selectedCategories.includes(cat)} on:change={() => toggleCategory(cat)} />
+              {cat}
+            </label>
+          {/each}
+        </div>
+      </div>
+
+      <div class="filter-group checkbox-group" style="margin-top: 15px; border-top: 1px solid #4e555f; padding-top: 15px;">
+        <label class="checkbox-label">
+          <input type="checkbox" bind:checked={showDeprecated} />
+          Show Deprecated Mods
+        </label>
+        <label class="checkbox-label" style="margin-top: 8px;">
+          <input type="checkbox" bind:checked={showTags} />
+          Show Mod Tags
+        </label>
+      </div>
+
+      <div style="margin-top: 20px;">
+        <button class="modal-btn primary" on:click={() => showFilterPanel = false}>Apply Filters</button>
       </div>
     </div>
   </div>

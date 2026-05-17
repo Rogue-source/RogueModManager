@@ -1,5 +1,5 @@
 :root {
-	--bg-sidebar: #222831;
+	--bg-sidebar: #1a1b3c; /*Mod background card*/
 	--bg-main: #393e46;
 	--text-white: #eeeeee;
 	--accent-teal: #00adb5;
@@ -28,6 +28,40 @@
 
 .search-input:focus {
 	border-color: var(--accent-teal);
+}
+
+.global-loader-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(34, 40, 49, 0.8); /* Dark semi-transparent background */
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999; /* Ensure it stays above everything */
+}
+
+.loader-container {
+  text-align: center;
+  color: #00adb5;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid #393e46;
+  border-top: 5px solid #00adb5;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 15px auto;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* Mod List Styling */
@@ -152,7 +186,7 @@ body {
 
 .select-trigger {
 	width: 100%;
-	background: #393E46;
+	background: #393E46; /*Profile dropdown*/
 	border: 1px solid #4e555f;
 	color: #eeeeee;
 	padding: 10px;
@@ -286,13 +320,13 @@ body {
 	display: flex;
 	height: 100vh;
 	width: 100vw;
-	background-color: #393E46;
+	background-color: #393E46;  /*Game select background*/
 	color: #eeeeee;
 }
 
 .sidebar {
 	width: 260px;
-	background-color: #222831;
+	background-color: #222831;   /*Sidebar Color*/
 	display: flex;
 	flex-direction: column;
 	padding: 20px 0;
@@ -468,4 +502,381 @@ body {
   border-radius: 6px;
   border-left: 4px solid #00adb5;
   line-height: 1.4;
+}
+.context-menu {
+    position: fixed;
+    background: #1e1e1e;
+    border: 1px solid #444;
+    padding: 4px;
+    z-index: 10000;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  }
+  .context-menu button {
+    background: none;
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    font-size: 13px;
+  }
+  .context-menu button:hover {
+    background: #333;
+  }
+  
+ .config-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-top: 10px;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .config-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 15px;
+    background: #1a1c20;
+    border: 1px solid #2a2d33;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .config-item:hover {
+    background: #2a2d33;
+    border-color: #00adb5;
+  }
+
+  .file-icon {
+    color: #00adb5;
+    font-size: 1.1rem;
+  }
+
+  .file-name {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    color: #e0e0e0;
+  }
+
+  /* Dropdown delete button color */
+  .menu-item.delete {
+    color: #ff4d4d;
+  }
+
+  .menu-item.delete:hover {
+    background: #ff4d4d22;
+  }
+  
+  .menu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+ /* =========================
+   CONFIG EDITOR
+========================= */
+
+.config-editor-card {
+	width: 760px;
+	max-width: 92vw;
+	max-height: 82vh;
+	overflow: hidden;
+
+	background: #222831;
+	border: 1px solid #4e555f;
+	border-radius: 16px;
+
+	box-shadow:
+		0 20px 60px rgba(0, 0, 0, 0.65),
+		0 0 0 1px rgba(255,255,255,0.02);
+
+	display: flex;
+	flex-direction: column;
+}
+
+.config-editor-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+
+	padding: 28px 32px 20px;
+	border-bottom: 1px solid rgba(78, 85, 95, 0.6);
+}
+
+.config-editor-title {
+	margin: 0;
+	font-size: 2rem;
+	font-weight: 800;
+	color: #00adb5;
+	letter-spacing: -0.5px;
+}
+
+.config-editor-subtitle {
+	margin: 10px 0 0;
+	color: #9aa4af;
+	font-size: 0.95rem;
+}
+
+.config-editor-subtitle span {
+	color: #eeeeee;
+	font-weight: 700;
+}
+
+.config-close-btn {
+	width: 42px;
+	height: 42px;
+
+	border: 1px solid #4e555f;
+	border-radius: 10px;
+
+	background: #393E46;
+	color: #eeeeee;
+
+	font-size: 1.5rem;
+	cursor: pointer;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	transition:
+		background 0.2s,
+		border-color 0.2s,
+		transform 0.15s;
+}
+
+.config-close-btn:hover {
+	background: #454c56;
+	border-color: #00adb5;
+	transform: scale(1.05);
+}
+
+.config-editor-content {
+	padding: 24px 32px 32px;
+	overflow-y: auto;
+}
+
+.config-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.config-card {
+	background: #393E46;
+	border: 1px solid transparent;
+	border-radius: 12px;
+
+	padding: 16px 18px;
+
+	display: flex;
+	align-items: center;
+	gap: 16px;
+
+	cursor: pointer;
+
+	transition:
+		transform 0.15s ease,
+		border-color 0.2s ease,
+		background 0.2s ease;
+}
+
+.config-card:hover {
+	border-color: #00adb5;
+	background: #424954;
+	transform: translateX(4px);
+}
+
+.config-icon {
+	width: 46px;
+	height: 46px;
+
+	border-radius: 10px;
+
+	background: rgba(0, 173, 181, 0.12);
+	color: #00adb5;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	font-size: 1.3rem;
+	flex-shrink: 0;
+}
+
+.config-info {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.config-name {
+	color: #eeeeee;
+	font-size: 1rem;
+	font-weight: 700;
+
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.config-meta {
+	margin-top: 4px;
+	color: #9aa4af;
+	font-size: 0.85rem;
+}
+
+.config-empty {
+	background: #393E46;
+	border: 1px dashed #4e555f;
+	border-radius: 12px;
+
+	padding: 40px 20px;
+
+	text-align: center;
+	color: #7e8791;
+}
+
+/* Config context menu improvements */
+
+.context-menu {
+	background: #222831;
+	border: 1px solid #4e555f;
+	border-radius: 10px;
+	padding: 6px;
+	min-width: 180px;
+
+	box-shadow: 0 10px 35px rgba(0,0,0,0.45);
+	backdrop-filter: blur(8px);
+}
+
+.context-menu button {
+	background: transparent;
+	border: none;
+	color: #eeeeee;
+
+	padding: 10px 12px;
+	border-radius: 8px;
+
+	font-size: 0.92rem;
+	font-weight: 600;
+
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.context-menu button:hover {
+	background: #393E46;
+}
+
+.context-menu .delete {
+	color: #ff6b6b;
+}
+
+.context-menu .disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+.context-menu .disabled:hover {
+	background: transparent;
+}
+
+/* =========================
+   EXPANDABLE CONFIG ITEMS
+========================= */
+
+.config-entry {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+}
+
+.config-card {
+	position: relative;
+	z-index: 2;
+}
+
+.config-chevron {
+	margin-left: auto;
+	font-size: 1.2rem;
+	color: #9aa4af;
+	transition:
+		transform 0.2s ease,
+		color 0.2s ease;
+}
+
+.config-chevron.open {
+	transform: rotate(180deg);
+	color: #00adb5;
+}
+
+.config-actions-panel {
+	margin-top: -4px;
+
+	background: linear-gradient(
+		180deg,
+		#1f252d 0%,
+		#1a2027 100%
+	);
+
+	border: 1px solid #39424d;
+	border-top: none;
+
+	border-radius: 0 0 14px 14px;
+
+	padding: 18px;
+
+	display: flex;
+	align-items: center;
+	gap: 14px;
+
+	animation: expandConfigPanel 0.18s ease-out;
+}
+
+@keyframes expandConfigPanel {
+	from {
+		opacity: 0;
+		transform: translateY(-6px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.config-action-btn {
+	background: #2c3440;
+	border: 1px solid #4e555f;
+
+	color: #eeeeee;
+
+	padding: 12px 18px;
+	border-radius: 10px;
+
+	font-size: 0.95rem;
+	font-weight: 700;
+
+	cursor: pointer;
+
+	transition:
+		background 0.2s ease,
+		border-color 0.2s ease,
+		transform 0.15s ease;
+}
+
+.config-action-btn:hover {
+	background: #38414d;
+	border-color: #00adb5;
+	transform: translateY(-1px);
+}
+
+.config-action-btn.danger:hover {
+	border-color: #ff6b6b;
+	color: #ff8080;
 }

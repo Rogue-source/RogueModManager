@@ -1,4 +1,4 @@
-import { d as ensure_array_like, f as attr, e as escape_html } from "../../chunks/renderer.js";
+import { a as attr, b as attr_class, f as ensure_array_like, e as escape_html, c as stringify } from "../../chunks/renderer.js";
 import "@sveltejs/kit/internal";
 import "../../chunks/exports.js";
 import "../../chunks/utils.js";
@@ -6,8 +6,11 @@ import "@sveltejs/kit/internal/server";
 import "../../chunks/root.js";
 import "../../chunks/state.svelte.js";
 import "@tauri-apps/plugin-fs";
+import "@tauri-apps/api/core";
+import "@tauri-apps/api/path";
 function _page($$renderer, $$props) {
   $$renderer.component(($$renderer2) => {
+    let filteredGames, favorites, others;
     let games = [
       {
         id: "repo",
@@ -98,15 +101,617 @@ function _page($$renderer, $$props) {
         name: "ULTRAKILL",
         slug: "ultrakill",
         banner: "https://cdn2.steamgriddb.com/thumb/4c1b274e8befa9cbcd35ae8bdd5f1085.jpg"
+      },
+      {
+        id: "9-kings",
+        name: "9 Kings",
+        slug: "9-kings",
+        banner: "https://cdn2.steamgriddb.com/thumb/ef2da7763876c3d303a10e6bcd845e15.jpg"
+      },
+      {
+        id: "a-gentlemens-dispute",
+        name: "A Gentlemen's Dispute",
+        slug: "a-gentlemens-dispute",
+        banner: "https://cdn2.steamgriddb.com/thumb/5c832787dabc5fa1c1bba25901a13aee.jpg"
+      },
+      {
+        id: "aeruta",
+        name: "Aeruta",
+        slug: "aeruta",
+        banner: "https://gcdn.thunderstore.io/live/community/aeruta/aeruta-cover-360x480.webp"
+      },
+      {
+        id: "an-unfinished-game",
+        name: "An Unfinished Game",
+        slug: "an-unfinished-game",
+        banner: "https://gcdn.thunderstore.io/live/community/an-unfinished-game/an-unfinished-game-cover-360x480.webp"
+      },
+      {
+        id: "aneurism-iv",
+        name: "ANEURISM IV",
+        slug: "aneurism-iv",
+        banner: "https://cdn2.steamgriddb.com/thumb/9c9e7569e9191871ef1500bc3417f91e.jpg"
+      },
+      {
+        id: "angry-birds-vr-isle-of-pigs",
+        name: "Angry Birds VR",
+        slug: "angry-birds-vr-isle-of-pigs",
+        banner: "https://cdn2.steamgriddb.com/thumb/6dcba7c876e79d886100f21236c496ce.jpg"
+      },
+      {
+        id: "baby-steps",
+        name: "Baby Steps",
+        slug: "baby-steps",
+        banner: "https://cdn2.steamgriddb.com/thumb/69b4e8ec8b08f7bf278979d856c4cad1.jpg"
+      },
+      {
+        id: "bad-north",
+        name: "Bad North",
+        slug: "bad-north",
+        banner: "https://cdn2.steamgriddb.com/thumb/59853c24c8251189c64ec3608c87a1a1.png"
+      },
+      {
+        id: "banjo-recompiled",
+        name: "Banjo: Recompiled",
+        slug: "banjo-recompiled",
+        banner: "https://cdn2.steamgriddb.com/thumb/b09a78dcfcf530ae5459868210c63985.jpg"
+      },
+      {
+        id: "beetleball",
+        name: "Beetleball",
+        slug: "beetleball",
+        banner: "https://gcdn.thunderstore.io/live/community/beetleball/beetleball-cover-360x480.webp"
+      },
+      {
+        id: "bendy-and-the-ink-machine",
+        name: "Bendy and the Ink...",
+        slug: "bendy-and-the-ink-machine",
+        banner: "https://cdn2.steamgriddb.com/thumb/a4a39e8d061601e46f61ddc777113e8c.jpg"
+      },
+      {
+        id: "beton-brutal",
+        name: "BETON BRUTAL",
+        slug: "beton-brutal",
+        banner: "https://cdn2.steamgriddb.com/thumb/9a49c909990ccc3302ecb4a7a1ff2e59.jpg"
+      },
+      {
+        id: "big-ambitions",
+        name: "Big Ambitions",
+        slug: "big-ambitions",
+        banner: "https://gcdn.thunderstore.io/live/community/big-ambitions/big-ambitions-cover-360x480.webp"
+      },
+      {
+        id: "broforce",
+        name: "Broforce",
+        slug: "broforce",
+        banner: "https://gcdn.thunderstore.io/live/community/broforce/broforce-cover-360x480.webp"
+      },
+      {
+        id: "carrier-deck",
+        name: "Carrier Deck",
+        slug: "carrier-deck",
+        banner: "https://gcdn.thunderstore.io/live/community/carrier-deck/carrier-deck-cover-360x480.webp"
+      },
+      {
+        id: "chill-with-you",
+        name: "Chill with You",
+        slug: "chill-with-you",
+        banner: "https://gcdn.thunderstore.io/live/community/chill-with-you/chill-with-you-lo-fi-story-cover-360x480.png"
+      },
+      {
+        id: "clover-pit",
+        name: "CloverPit",
+        slug: "clover-pit",
+        banner: "https://gcdn.thunderstore.io/live/community/clover-pit/cloverpit-cover-360x480.webp"
+      },
+      {
+        id: "crawlspace",
+        name: "Crawlspace",
+        slug: "crawlspace",
+        banner: "https://gcdn.thunderstore.io/live/community/crawlspace/crawlspace-cover-360x480.webp"
+      },
+      {
+        id: "crawlspace-2",
+        name: "Crawlspace 2",
+        slug: "crawlspace-2",
+        banner: "https://gcdn.thunderstore.io/live/community/crawlspace-2/crawlspace-2-cover-360x480.webp"
+      },
+      {
+        id: "crime-simulator",
+        name: "Crime Simulator",
+        slug: "crime-simulator",
+        banner: "https://gcdn.thunderstore.io/live/community/crime-simulator/crime-simulator-cover-360x480.webp"
+      },
+      {
+        id: "cryo",
+        name: "CRYO",
+        slug: "cryo",
+        banner: "https://gcdn.thunderstore.io/live/community/cryo/cryo-cover-360x480.webp"
+      },
+      {
+        id: "cursed-words",
+        name: "Cursed Words",
+        slug: "cursed-words",
+        banner: "https://gcdn.thunderstore.io/live/community/cursed-words/cursed-words-cover-360x480.webp"
+      },
+      {
+        id: "darkwater",
+        name: "Darkwater",
+        slug: "darkwater",
+        banner: "https://gcdn.thunderstore.io/live/community/darkwater/darkwater-cover-360x480.webp"
+      },
+      {
+        id: "deadly-delivery",
+        name: "Deadly Delivery",
+        slug: "deadly-delivery",
+        banner: "https://gcdn.thunderstore.io/live/community/deadly-delivery/deadly-delivery-cover-360x480.webp"
+      },
+      {
+        id: "depo",
+        name: "DEPO : Death Epilep...",
+        slug: "depo",
+        banner: "https://gcdn.thunderstore.io/live/community/depo/depo-death-epileptic-pixel-origins-cover-360x480.png"
+      },
+      {
+        id: "dinosaur-planet-recompiled",
+        name: "Dinosaur Planet",
+        slug: "dinosaur-planet-recompiled",
+        banner: "https://gcdn.thunderstore.io/live/community/dinosaur-planet-recompiled/dinosaur-planet-recompiled-cover-360x480_A8yFwul.webp"
+      },
+      {
+        id: "ducks-can-drive",
+        name: "Ducks Can Drive",
+        slug: "ducks-can-drive",
+        banner: "https://gcdn.thunderstore.io/live/community/ducks-can-drive/ducks-can-drive-cover-360x480.webp"
+      },
+      {
+        id: "easy-delivery-co",
+        name: "Easy Delivery Co",
+        slug: "easy-delivery-co",
+        banner: "https://gcdn.thunderstore.io/live/community/easy-delivery-co/easy-delivery-co-cover-360x480.webp"
+      },
+      {
+        id: "factory-planner",
+        name: "Factory Planner",
+        slug: "factory-planner",
+        banner: "https://gcdn.thunderstore.io/live/community/factory-planner/factory-planner-cover-360x480.webp"
+      },
+      {
+        id: "football-manager-26",
+        name: "Football Manager 26",
+        slug: "football-manager-26",
+        banner: "https://gcdn.thunderstore.io/live/community/football-manager-26/football-manager-26-cover-360x480.webp"
+      },
+      {
+        id: "forsaken-frontiers",
+        name: "Forsaken Frontiers",
+        slug: "forsaken-frontiers",
+        banner: "https://gcdn.thunderstore.io/live/community/forsaken-frontiers/forsaken-frontiers-cover-360x480.webp"
+      },
+      {
+        id: "goblin-buster",
+        name: "Goblin Buster",
+        slug: "goblin-buster",
+        banner: "https://gcdn.thunderstore.io/live/community/goblin-buster/goblin-buster-cover-360x480.webp"
+      },
+      {
+        id: "gorilla-tag",
+        name: "Gorilla Tag",
+        slug: "gorilla-tag",
+        banner: "https://gcdn.thunderstore.io/live/community/gorilla-tag/gorilla-tag-cover-360x480.webp"
+      },
+      {
+        id: "granny-chapter-two",
+        name: "Granny: Chapter Two",
+        slug: "granny-chapter-two",
+        banner: "https://gcdn.thunderstore.io/live/community/granny-chapter-two/granny-chapter-two-cover-360x480.webp"
+      },
+      {
+        id: "grey-hack",
+        name: "Grey Hack",
+        slug: "grey-hack",
+        banner: "https://gcdn.thunderstore.io/live/community/grey-hack/grey-hack-cover-360x480.webp"
+      },
+      {
+        id: "guilty-as-sock",
+        name: "Guilty as Sock!",
+        slug: "guilty-as-sock",
+        banner: "https://gcdn.thunderstore.io/live/community/guilty-as-sock/guilty-as-sock-cover-360x480.png"
+      },
+      {
+        id: "hot-lava",
+        name: "Hot Lava",
+        slug: "hot-lava",
+        banner: "https://gcdn.thunderstore.io/live/community/hot-lava/hot-lava-cover-360x480.webp"
+      },
+      {
+        id: "house-of-legacy",
+        name: "House of Legacy",
+        slug: "house-of-legacy",
+        banner: "https://gcdn.thunderstore.io/live/community/house-of-legacy/house-of-legacy-cover-360x480.webp"
+      },
+      {
+        id: "hytale",
+        name: "Hytale",
+        slug: "hytale",
+        banner: "https://gcdn.thunderstore.io/live/community/hytale/hytale-cover-360x480.webp"
+      },
+      {
+        id: "island-market-simulator",
+        name: "Island Market Simulator",
+        slug: "island-market-simulator",
+        banner: "https://gcdn.thunderstore.io/live/community/island-market-simulator/island-market-simulator-cover-360x480.webp"
+      },
+      {
+        id: "jump-space",
+        name: "Jump Space",
+        slug: "jump-space",
+        banner: "https://gcdn.thunderstore.io/live/community/jump-space/jump-space-cover-360x480.webp"
+      },
+      {
+        id: "keywe",
+        name: "KeyWe",
+        slug: "keywe",
+        banner: "https://gcdn.thunderstore.io/live/community/keywe/keywe-cover-360x480.webp"
+      },
+      {
+        id: "labyrinthine",
+        name: "Labyrinthine",
+        slug: "labyrinthine",
+        banner: "https://gcdn.thunderstore.io/live/community/labyrinthine/labyrinthine-cover-360x480_JdsXkpK.png"
+      },
+      {
+        id: "lens-island",
+        name: "Len's Island",
+        slug: "lens-island",
+        banner: "https://gcdn.thunderstore.io/live/community/lens-island/lens-island-cover-360x480.webp"
+      },
+      {
+        id: "logic-world",
+        name: "Logic World",
+        slug: "logic-world",
+        banner: "https://gcdn.thunderstore.io/live/community/logic-world/logic-world-cover-360x480.webp"
+      },
+      {
+        id: "lost-skies",
+        name: "Lost Skies",
+        slug: "lost-skies",
+        banner: "https://gcdn.thunderstore.io/live/community/lost-skies/lost-skies-cover-360x480.png"
+      },
+      {
+        id: "lost-skies-ic",
+        name: "Lost Skies IC",
+        slug: "lost-skies-ic",
+        banner: "https://gcdn.thunderstore.io/live/community/lost-skies-ic/lost-skies-island-editor-cover-360x480.png"
+      },
+      {
+        id: "mage-arena",
+        name: "Mage Arena",
+        slug: "mage-arena",
+        banner: "https://gcdn.thunderstore.io/live/community/mage-arena/mage-arena-cover-360x480.webp"
+      },
+      {
+        id: "magicite",
+        name: "Magicite",
+        slug: "magicite",
+        banner: "https://gcdn.thunderstore.io/live/community/magicite/magicite-cover-360x480.png"
+      },
+      {
+        id: "malteses-fluffy-onsen",
+        name: "Maltese's Fluffy Onsen",
+        slug: "malteses-fluffy-onsen",
+        banner: "https://gcdn.thunderstore.io/live/community/malteses-fluffy-onsen/malteses-fluffy-onsen-cover-360x480.webp"
+      },
+      {
+        id: "mewgenics",
+        name: "Mewgenics",
+        slug: "mewgenics",
+        banner: "https://gcdn.thunderstore.io/live/community/mewgenics/mewgenics-cover-360x480.webp"
+      },
+      {
+        id: "mimesis",
+        name: "Mimesis",
+        slug: "mimesis",
+        banner: "https://gcdn.thunderstore.io/live/community/mimesis/mimesis-cover-360x480.webp"
+      },
+      {
+        id: "mine-mogul",
+        name: "MineMogul",
+        slug: "mine-mogul",
+        banner: "https://gcdn.thunderstore.io/live/community/mine-mogul/minemogul-cover-360x480.webp"
+      },
+      {
+        id: "my-winter-car",
+        name: "My Winter Car",
+        slug: "my-winter-car",
+        banner: "https://gcdn.thunderstore.io/live/community/my-winter-car/my-winter-car-cover-360x480.webp"
+      },
+      {
+        id: "mycopunk",
+        name: "Mycopunk",
+        slug: "mycopunk",
+        banner: "https://gcdn.thunderstore.io/live/community/mycopunk/mycopunk-cover-360x480.webp"
+      },
+      {
+        id: "necropolis",
+        name: "Necropolis",
+        slug: "necropolis",
+        banner: "https://gcdn.thunderstore.io/live/community/necropolis/necropolis-brutal-edition-cover-360x480.webp"
+      },
+      {
+        id: "nuclear-option",
+        name: "Nuclear Option",
+        slug: "nuclear-option",
+        banner: "https://gcdn.thunderstore.io/live/community/nuclear-option/nuclear-option-cover-360x480.webp"
+      },
+      {
+        id: "on-together",
+        name: "On-Together: Virtual Co-Working",
+        slug: "on-together",
+        banner: "https://gcdn.thunderstore.io/live/community/on-together/on-together-cover-360x480.webp"
+      },
+      {
+        id: "ostranauts",
+        name: "Ostranauts",
+        slug: "ostranauts",
+        banner: "https://gcdn.thunderstore.io/live/community/ostranauts/ostranauts-cover-360x480.webp"
+      },
+      {
+        id: "pac-man-world-re-pac",
+        name: "PAC-MAN WORLD",
+        slug: "pac-man-world-re-pac",
+        banner: "https://gcdn.thunderstore.io/live/community/pac-man-world-re-pac/pac-man-world-re-pac-cover-360x480.webp"
+      },
+      {
+        id: "painting-vr",
+        name: "Painting VR",
+        slug: "painting-vr",
+        banner: "https://gcdn.thunderstore.io/live/community/painting-vr/painting-vr-cover-360x480.png"
+      },
+      {
+        id: "pair-a-dice",
+        name: "Pair A Dice",
+        slug: "pair-a-dice",
+        banner: "https://gcdn.thunderstore.io/live/community/pair-a-dice/pair-a-dice-cover-360x480.webp"
+      },
+      {
+        id: "paper-animal-adventure",
+        name: "Paper Animal Adventure",
+        slug: "paper-animal-adventure",
+        banner: "https://gcdn.thunderstore.io/live/community/paper-animal-adventure/paper-animal-adventure-cover-360x480.webp"
+      },
+      {
+        id: "paradiddle",
+        name: "Paradiddle",
+        slug: "paradiddle",
+        banner: "https://gcdn.thunderstore.io/live/community/paradiddle/paradiddle-cover-360x480.webp"
+      },
+      {
+        id: "patapon-1-2-replay",
+        name: "PATAPON 1+2 REPLAY",
+        slug: "patapon-1-2-replay",
+        banner: "https://gcdn.thunderstore.io/live/community/patapon-1-2-replay/patapon-12-replay-cover-360x480.webp"
+      },
+      {
+        id: "pigface",
+        name: "PIGFACE",
+        slug: "pigface",
+        banner: "https://gcdn.thunderstore.io/live/community/pigface/pigface-cover-360x480.png"
+      },
+      {
+        id: "pit-of-goblin",
+        name: "Pit of Goblin",
+        slug: "pit-of-goblin",
+        banner: "https://gcdn.thunderstore.io/live/community/pit-of-goblin/pit-of-goblin-cover-360x480.webp"
+      },
+      {
+        id: "project-arrhythmia",
+        name: "Project Arrhythmia",
+        slug: "project-arrhythmia",
+        banner: "https://gcdn.thunderstore.io/live/community/project-arrhythmia/project-arrhythmia-cover-360x480.webp"
+      },
+      {
+        id: "project-gorgon",
+        name: "Project Gorgon",
+        slug: "project-gorgon",
+        banner: "https://gcdn.thunderstore.io/live/community/project-gorgon/project-gorgon-cover-360x480.webp"
+      },
+      {
+        id: "pushing-it-together-sisyphus",
+        name: "Pushing it! Together",
+        slug: "pushing-it-together-sisyphus",
+        banner: "https://gcdn.thunderstore.io/live/community/pushing-it-together-sisyphus/pushing-it-together-sisyphus-co-op-cover-360x480.webp"
+      },
+      {
+        id: "puttler",
+        name: "Puttler",
+        slug: "puttler",
+        banner: "https://gcdn.thunderstore.io/live/community/puttler/puttler-cover-360x480.webp"
+      },
+      {
+        id: "r5valkyrie",
+        name: "R5Valkyrie",
+        slug: "r5valkyrie",
+        banner: "https://gcdn.thunderstore.io/live/community/r5valkyrie/r5valkyrie-cover-360x480_WnEV905.webp"
+      },
+      {
+        id: "random-access-mayhem",
+        name: "Random Access Mayhem",
+        slug: "random-access-mayhem",
+        banner: "https://gcdn.thunderstore.io/live/community/random-access-mayhem/ram-random-access-mayhem-cover-360x480.webp"
+      },
+      {
+        id: "resonite",
+        name: "Resonite",
+        slug: "resonite",
+        banner: "https://gcdn.thunderstore.io/live/community/resonite/resonite-cover-360x480.webp"
+      },
+      {
+        id: "return-from-core",
+        name: "Return From Core",
+        slug: "return-from-core",
+        banner: "https://gcdn.thunderstore.io/live/community/return-from-core/return-from-core-cover-360x480.webp"
+      },
+      {
+        id: "return-of-the-obra-dinn",
+        name: "Return of the Obra Dinn",
+        slug: "return-of-the-obra-dinn",
+        banner: "https://gcdn.thunderstore.io/live/community/return-of-the-obra-dinn/return-of-the-obra-dinn-cover-360x480.png"
+      },
+      {
+        id: "rv-there-yet",
+        name: "RV There Yet?",
+        slug: "rv-there-yet",
+        banner: "https://gcdn.thunderstore.io/live/community/rv-there-yet/rv-there-yet-cover-360x480.webp"
+      },
+      {
+        id: "scrap-mechanic",
+        name: "Scrap Mechanic",
+        slug: "scrap-mechanic",
+        banner: "https://gcdn.thunderstore.io/live/community/scrap-mechanic/scrap-mechanic-cover-360x480.webp"
+      },
+      {
+        id: "slashers-keep",
+        name: "Slasher's Keep",
+        slug: "slashers-keep",
+        banner: "https://gcdn.thunderstore.io/live/community/slashers-keep/slashers-keep-cover-360x480.webp"
+      },
+      {
+        id: "sledding-game",
+        name: "Sledding Game",
+        slug: "sledding-game",
+        banner: "https://gcdn.thunderstore.io/live/community/sledding-game/sledding-game-cover-360x480.webp"
+      },
+      {
+        id: "smushi-come-home",
+        name: "Smushi Come Home",
+        slug: "smushi-come-home",
+        banner: "https://gcdn.thunderstore.io/live/community/smushi-come-home/smushi-come-home-cover-360x480.webp"
+      },
+      {
+        id: "soulcalibur-vi",
+        name: "SOULCALIBUR VI",
+        slug: "soulcalibur-vi",
+        banner: "https://gcdn.thunderstore.io/live/community/soulcalibur-vi/soulcalibur-vi-cover-360x480.webp"
+      },
+      {
+        id: "spaghetti-kart",
+        name: "Spaghetti Kart",
+        slug: "spaghetti-kart",
+        banner: "https://gcdn.thunderstore.io/live/community/spaghetti-kart/spaghetti-kart-cover-360x480.webp"
+      },
+      {
+        id: "starfox-64-recompiled",
+        name: "Starfox 64: Recompiled",
+        slug: "starfox-64-recompiled",
+        banner: "https://gcdn.thunderstore.io/live/community/starfox-64-recompiled/community_image.png"
+      },
+      {
+        id: "stolen-realm",
+        name: "Stolen Realm",
+        slug: "stolen-realm",
+        banner: "https://gcdn.thunderstore.io/live/community/stolen-realm/stolen-realm-cover-360x480.webp"
+      },
+      {
+        id: "super-battle-golf",
+        name: "Super Battle Golf",
+        slug: "super-battle-golf",
+        banner: "https://gcdn.thunderstore.io/live/community/super-battle-golf/super-battle-golf-cover-360x480_5WFPyOd.webp"
+      },
+      {
+        id: "super-fantasy-kingdom",
+        name: "Super Fantasy Kingdom",
+        slug: "super-fantasy-kingdom",
+        banner: "https://gcdn.thunderstore.io/live/community/super-fantasy-kingdom/super-fantasy-kingdom-cover-360x480.webp"
+      },
+      {
+        id: "super-mario-3d-world",
+        name: "Super Mario 3D World",
+        slug: "super-mario-3d-world",
+        banner: "https://gcdn.thunderstore.io/live/community/super-mario-3d-world/super-mario-3d-world-cover-360x480.webp"
+      },
+      {
+        id: "tcg-card-shop-simulator",
+        name: "TSG Card Shop Simulator",
+        slug: "tcg-card-shop-simulator",
+        banner: "https://gcdn.thunderstore.io/live/community/tcg-card-shop-simulator/tcg-card-shop-simulator-cover-360x480.png"
+      },
+      {
+        id: "unfair-flips",
+        name: "Unfair Flips",
+        slug: "unfair-flips",
+        banner: "https://gcdn.thunderstore.io/live/community/unfair-flips/unfair-flips-cover-360x480.webp"
+      },
+      {
+        id: "vellum",
+        name: "Vellum",
+        slug: "vellum",
+        banner: "https://gcdn.thunderstore.io/live/community/vellum/vellum-cover-360x480.webp"
+      },
+      {
+        id: "very-very-valet",
+        name: "Very Very Valet",
+        slug: "very-very-valet",
+        banner: "https://gcdn.thunderstore.io/live/community/very-very-valet/very-very-valet-cover-360x480.webp"
+      },
+      {
+        id: "vigil",
+        name: "Vigil",
+        slug: "vigil",
+        banner: "https://gcdn.thunderstore.io/live/community/vigil/vigil-cover-360x480.webp"
+      },
+      {
+        id: "word-play",
+        name: "Word Play",
+        slug: "word-play",
+        banner: "https://gcdn.thunderstore.io/live/community/word-play/word-play-cover-360x480.png"
+      },
+      {
+        id: "yapyap",
+        name: "YAPYAP",
+        slug: "yapyap",
+        banner: "https://gcdn.thunderstore.io/live/community/yapyap/library_capsule_85vZQHE.jpg"
       }
     ];
-    $$renderer2.push(`<div class="games-view svelte-1uha8ag"><h1 class="view-title svelte-1uha8ag">My Games</h1> <div class="games-grid svelte-1uha8ag"><!--[-->`);
-    const each_array = ensure_array_like(games);
-    for (let $$index = 0, $$length = each_array.length; $$index < $$length; $$index++) {
-      let game = each_array[$$index];
-      $$renderer2.push(`<button class="game-card svelte-1uha8ag"><div class="banner-box svelte-1uha8ag"><img${attr("src", game.banner)}${attr("alt", game.name)} class="svelte-1uha8ag"/></div> <div class="game-info svelte-1uha8ag"><span class="game-name svelte-1uha8ag">${escape_html(game.name)}</span></div></button>`);
+    let searchQuery = "";
+    let favoritedIds = [];
+    filteredGames = games.filter((g) => g.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    favorites = filteredGames.filter((g) => favoritedIds.includes(g.id));
+    others = filteredGames.filter((g) => !favoritedIds.includes(g.id));
+    $$renderer2.push(`<div class="games-view"><div class="header-container"><h1 class="view-title">Communities</h1> <div class="search-wrapper"><input type="text" placeholder="Search games..."${attr("value", searchQuery)} class="game-search"/></div></div> `);
+    if (favorites.length > 0) {
+      $$renderer2.push("<!--[0-->");
+      $$renderer2.push(`<div role="presentation" class="section-header"><span${attr_class(`arrow ${stringify("down")}`)}>▶</span> <h2>Favorites</h2></div> `);
+      {
+        $$renderer2.push("<!--[0-->");
+        $$renderer2.push(`<div class="games-grid"><!--[-->`);
+        const each_array = ensure_array_like(favorites);
+        for (let $$index = 0, $$length = each_array.length; $$index < $$length; $$index++) {
+          let game = each_array[$$index];
+          $$renderer2.push(`<button class="game-card"><div class="banner-box"><img${attr("src", game.banner)}${attr("alt", game.name)}/></div> <div class="game-info"><span class="game-name">${escape_html(game.name)}</span></div></button>`);
+        }
+        $$renderer2.push(`<!--]--></div>`);
+      }
+      $$renderer2.push(`<!--]-->`);
+    } else {
+      $$renderer2.push("<!--[-1-->");
     }
-    $$renderer2.push(`<!--]--></div></div>`);
+    $$renderer2.push(`<!--]--> <div role="presentation" class="section-header"><span${attr_class(`arrow ${stringify("down")}`)}>▶</span> <h2>Games</h2></div> `);
+    {
+      $$renderer2.push("<!--[0-->");
+      $$renderer2.push(`<div class="games-grid"><!--[-->`);
+      const each_array_1 = ensure_array_like(others);
+      for (let $$index_1 = 0, $$length = each_array_1.length; $$index_1 < $$length; $$index_1++) {
+        let game = each_array_1[$$index_1];
+        $$renderer2.push(`<button class="game-card"><div class="banner-box"><img${attr("src", game.banner)}${attr("alt", game.name)}/></div> <div class="game-info"><span class="game-name">${escape_html(game.name)}</span></div></button>`);
+      }
+      $$renderer2.push(`<!--]--></div>`);
+    }
+    $$renderer2.push(`<!--]--></div> `);
+    {
+      $$renderer2.push("<!--[-1-->");
+    }
+    $$renderer2.push(`<!--]-->`);
   });
 }
 export {
