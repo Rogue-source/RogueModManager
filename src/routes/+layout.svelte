@@ -55,7 +55,6 @@
   let configMenuPos = { x: 0, y: 0 };
   let expandedConfig = null;
 
-  // Poll for manual folder changes
   let pollInterval;
   $: if (showDropdown && $selectedGame) {
     clearInterval(pollInterval);
@@ -101,13 +100,11 @@ async function openConfigPanel() {
     showConfigMenu = true;
   }
 
-  // 4. Open File logic (Using your existing openUrl import)
   async function openConfigFile() {
     showConfigMenu = false;
     if (!selectedConfigFile) return;
     
-    // Construct the path for Windows
-    const appData = await invoke('get_appdata_path'); // Ensure you have this simple helper in Rust
+    const appData = await invoke('get_appdata_path');
     const path = `${appData}\\RogueModManager\\${$selectedGame.id}\\profiles\\${$selectedProfile}\\BepInEx\\config\\${selectedConfigFile.name}`;
     
     await openUrl(path); 
@@ -118,16 +115,12 @@ async function copyProfileCode() {
     if (!targetProfile || !$selectedGame) return;
 
     try {
-      // 1. Get the list of installed mods
       const installed: any[] = await invoke('get_installed_mods', {
         projectName: "RogueModManager",
         gameName: $selectedGame.id,
         profileName: targetProfile
       });
 
-      // 2. Format mod list as valid YAML
-      // Changed mod.authorName -> mod.owner
-      // Changed mod.versionNumber -> mod.version
       const modEntries = installed.map(mod => {
         return [
           `  - name: ${mod.name}`,
@@ -143,7 +136,6 @@ async function copyProfileCode() {
         { path: "export.r2x", content: yamlContent }
       ];
 
-      // 3. Bundle Config Files
       try {
         const configs: any[] = await invoke('get_config_files', {
           gameName: $selectedGame.id,
@@ -159,15 +151,12 @@ async function copyProfileCode() {
         console.warn("No configs found to bundle:", e);
       }
 
-      // 4. Encode to Base64 Zip
       const encodedData: string = await invoke('encode_profile_data', {
         files: filesToExport
       });
 
-      // 5. Construct final payload
       const finalPayload = `#r2modman\n${encodedData}`;
 
-      // 6. Upload as RAW text
       const res = await tauriFetch("https://thunderstore.io/api/experimental/legacyprofile/create/", {
         method: "POST",
         headers: {
@@ -205,7 +194,6 @@ async function handleImportCode() {
       modsRaw.map(async (mod) => {
         try {
           const res = await tauriFetch(`https://thunderstore.io/api/experimental/package/${mod.owner}/${mod.name}/`);
-          // console.log(res)
 		  
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
@@ -255,14 +243,12 @@ async function handleImportCode() {
         projectName: "RogueModManager", 
         gameName: $selectedGame.id 
       });
-      
-      // Ensure Default always exists	  
+        
       if (!list.includes("Default")) {
         list = ["Default", ...list];
       }
       profileList.set(list);
       
-      // Fallback to Default if current profile disappeared
       if (!$profileList.includes($selectedProfile)) {
         selectedProfile.set("Default");
       }
@@ -273,7 +259,6 @@ async function handleImportCode() {
     }
   }
 
-  // Reactive for settings
   $: if (showSettings) {
     if ($selectedGame) {
       tempPath = $selectedGame.executablePath || "Not located. Click browse...";
@@ -341,7 +326,6 @@ async function handleImportCode() {
     }
   }
 
-  // === New Modal Functions ===
   async function createProfileFromModal() {
     const name = newProfileName.trim();
     if (!name || name.toLowerCase() === "default") return;
@@ -367,7 +351,6 @@ async function handleImportCode() {
     importCode = "";
   }
 
-  // Launch with safety guard for null executablePath
   async function launchModdedGame() {
     if (!$selectedGame) return;
 

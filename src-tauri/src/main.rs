@@ -34,10 +34,8 @@ pub struct ConfigFile {
 
 #[tauri::command]
 async fn get_config_files(game_name: String, profile_name: String) -> Result<Vec<ConfigFile>, String> {
-    // Safely resolve the Windows %APPDATA% path
     let app_data = std::env::var("APPDATA").map_err(|_| "Failed to resolve APPDATA directory".to_string())?;
     
-    // Construct the path: C:\Users\...\AppData\Roaming\RogueModManager\{GameName}\profiles\{profileName}\BepInEx\config
     let path: PathBuf = [
         &app_data,
         "RogueModManager",
@@ -58,7 +56,6 @@ async fn get_config_files(game_name: String, profile_name: String) -> Result<Vec
             
             if file_path.is_file() {
                 if let Some(name) = file_path.file_name().and_then(|n| n.to_str()) {
-                    // Only read the file if it can be parsed as a standard string
                     if let Ok(content) = std::fs::read_to_string(&file_path) {
                         configs.push(ConfigFile {
                             name: name.to_string(),
@@ -175,14 +172,12 @@ async fn install_mod(
     use std::io::Cursor;
     use std::path::{Path, PathBuf};
 
-    // 1. Setup Base Profile Path
     let mut profile_path = app_handle.path().config_dir().map_err(|e| e.to_string())?;
     profile_path.push(&project_name);
     profile_path.push(&game_name);
     profile_path.push("profiles");
     profile_path.push(&profile_name);
 
-    // 2. Download ZIP
     let client = reqwest::Client::new();
     let response_bytes = client.get(download_url)
         .send()
@@ -195,7 +190,6 @@ async fn install_mod(
     let cursor = Cursor::new(response_bytes);
     let mut archive = zip::ZipArchive::new(cursor).map_err(|e| e.to_string())?;
 
-    // 3. Collect all paths first (avoids borrow conflicts)
 let mut paths: Vec<PathBuf> = Vec::new();
 
 for i in 0..archive.len() {
@@ -206,7 +200,6 @@ for i in 0..archive.len() {
     }
 }
 
-// 4. Detect BepInEx root
 let mut found_root: Option<PathBuf> = None;
 
 for path in &paths {
@@ -218,7 +211,6 @@ for path in &paths {
             let mut has_bepinex_folder = false;
 
             for p in &paths {
-                // same directory check
                 if p.parent() == Some(parent.as_path()) {
                     if let Some(name) = p.file_name() {
                         if name == "winhttp.dll" {
@@ -227,7 +219,6 @@ for path in &paths {
                     }
                 }
 
-                // check for BepInEx folder
                 if p.starts_with(parent.join("BepInEx")) {
                     has_bepinex_folder = true;
                 }
@@ -240,7 +231,6 @@ for path in &paths {
         }
     }
 }
-    // 4. Extract
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
 
@@ -250,17 +240,15 @@ for path in &paths {
         };
 
         let target_path: PathBuf = if let Some(root) = &found_root {
-            // Only extract files inside detected root
             if let Ok(stripped) = outpath.strip_prefix(root) {
                 if stripped.as_os_str().is_empty() {
                     continue;
                 }
                 profile_path.join(stripped)
             } else {
-                continue; // skip anything outside
+                continue;
             }
         } else {
-            // Normal mod install
             let mut plugin_path = profile_path.clone();
             plugin_path.push("BepInEx");
             plugin_path.push("plugins");
@@ -358,7 +346,6 @@ async fn launch_game(
     profile_name: String,
     executable_path: String,
 ) -> Result<(), String> {
-    // === NEW: Ensure Steam is running first ===
     ensure_steam_running().await?;
 
     let mut profile_path = app_handle.path().config_dir().map_err(|e| e.to_string())?;
@@ -378,7 +365,6 @@ async fn launch_game(
 
     let exe_path = std::path::Path::new(&executable_path);
     if let Some(game_dir) = exe_path.parent() {
-        // 1. Copy the proxy DLL (winhttp.dll is the standard for BepInEx)
         let mut proxy_found = false;
         for proxy_name in ["winhttp.dll", "version.dll"] {
             let proxy_src = profile_path.join(proxy_name);
@@ -394,11 +380,9 @@ async fn launch_game(
             return Err("No proxy DLL found in profile folder.".into());
         }
 
-        // 2. Create .doorstop_version marker
         let version_marker = game_dir.join(".doorstop_version");
         fs::write(&version_marker, "4.0.0.0").map_err(|e| e.to_string())?;
 
-        // 3. Write doorstop_config.ini (exact format you already had)
         let config_dest = game_dir.join("doorstop_config.ini");
         let preloader_str = preloader_path.to_str().unwrap().replace("/", "\\");
         
@@ -409,7 +393,6 @@ async fn launch_game(
         fs::write(&config_dest, config_content).map_err(|e| e.to_string())?;
     }
 
-    // 4. Launch the game
     Command::new(&executable_path)
         .env("DOORSTOP_ENABLE", "TRUE")
         .env("DOORSTOP_INVOKE_DLL_PATH", preloader_path.to_str().unwrap())
@@ -420,7 +403,6 @@ async fn launch_game(
 }
 
 async fn ensure_steam_running() -> Result<(), String> {
-    // Check if Steam is already running
     let output = Command::new("tasklist")
         .args(["/FI", "IMAGENAME eq steam.exe", "/NH"])
         .output()
@@ -428,10 +410,9 @@ async fn ensure_steam_running() -> Result<(), String> {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     if stdout.contains("steam.exe") {
-        return Ok(()); // Steam is already running
+        return Ok(());
     }
 
-    // Steam is not running → start it silently
     println!("Steam not detected. Starting Steam...");
 
     let steam_path = r"C:\Program Files (x86)\Steam\steam.exe";
@@ -441,7 +422,6 @@ async fn ensure_steam_running() -> Result<(), String> {
         .spawn()
         .map_err(|e| format!("Failed to start Steam: {}", e))?;
 
-    // Wait for Steam to initialize (better than fixed delay in JS)
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
     Ok(())
@@ -454,7 +434,6 @@ fn list_profiles(app_handle: tauri::AppHandle, project_name: String, game_name: 
     path.push(&game_name);
     path.push("profiles");
 
-    // Always ensure the profiles folder and Default profile exist
     let _ = std::fs::create_dir_all(&path);
     let default_path = path.join("Default");
     let _ = std::fs::create_dir_all(&default_path);
@@ -465,7 +444,6 @@ fn list_profiles(app_handle: tauri::AppHandle, project_name: String, game_name: 
         for entry in entries.flatten() {
             if entry.path().is_dir() {
                 if let Ok(name) = entry.file_name().into_string() {
-                    // Prevent duplicate "Default" (case-insensitive)
                     if name.to_lowercase() != "default" {
                         profiles.push(name);
                     }
@@ -572,11 +550,9 @@ fn sync_profile_loader(app_handle: tauri::AppHandle, project_name: String, game_
     profile_path.push("profiles");
     profile_path.push(&profile_name);
 
-    // Path to the game directory (where the exe is)
     let exe_path = std::path::Path::new(&executable_path);
     let game_dir = exe_path.parent().ok_or("Invalid executable path")?;
 
-    // 1. Update doorstop_config.ini
     let ini_path = game_dir.join("doorstop_config.ini");
     let target_assembly = profile_path.join("BepInEx").join("core").join("BepInEx.Preloader.dll");
     

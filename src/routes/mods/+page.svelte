@@ -51,34 +51,13 @@ import {
     gfm: true
   });
 
-$: filteredMods = $globalMods.filter(m => {
-  const nameMatch = m.name.toLowerCase().includes(modSearch.toLowerCase());
-  const ownerMatch = m.owner.toLowerCase().includes(modSearch.toLowerCase());
-  const matchesSearch = nameMatch || ownerMatch;
-  return matchesSearch;
-});
-
   $: totalPages = Math.ceil(filteredMods.length / modsPerPage) || 1;
-  $: paginatedMods = filteredMods.slice(
-    (currentPage - 1) * modsPerPage,
-    currentPage * modsPerPage
-  );
-  $: filteredInstalledMods = installedMods.filter(m => {
-  const nameMatch = (m.name || '').toLowerCase().includes(installedSearch.toLowerCase());
-  const ownerMatch = (m.authorName || m.author || '').toLowerCase().includes(installedSearch.toLowerCase());
-  return nameMatch || ownerMatch;
-});
 
   $: if (modSearch || $activeModTab === 'online') currentPage = 1;
   $: paginatedMods = filteredMods.slice(
     (currentPage - 1) * modsPerPage,
     currentPage * modsPerPage
   );
-  $: filteredInstalledMods = installedMods.filter(m => {
-  const nameMatch = (m.name || '').toLowerCase().includes(installedSearch.toLowerCase());
-  const ownerMatch = (m.authorName || m.author || '').toLowerCase().includes(installedSearch.toLowerCase());
-  return nameMatch || ownerMatch;
-});
 
   $: if (modSearch || $activeModTab === 'online') currentPage = 1;
 
