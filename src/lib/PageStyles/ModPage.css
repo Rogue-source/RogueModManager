@@ -5,6 +5,7 @@
 	width: 100%;
 }
 
+/* The switch - the box around the slider */
 .switch {
 	position: relative;
 	display: inline-block;
@@ -12,12 +13,14 @@
 	height: 22px;
 }
 
+/* Hide default HTML checkbox */
 .switch input {
 	opacity: 0;
 	width: 0;
 	height: 0;
 }
 
+/* The slider */
 .slider {
 	position: absolute;
 	cursor: pointer;
@@ -51,6 +54,7 @@ input:checked+.slider:before {
 	background-color: white;
 }
 
+/* Rounded sliders */
 .slider.round {
 	border-radius: 34px;
 }
@@ -64,6 +68,7 @@ input:checked+.slider:before {
 	transition: border-color 0.3s;
 }
 
+/* Glow effect if enabled */
 .installed-card:has(input:checked) {
 	border-left-color: #00adb5;
 }
@@ -75,10 +80,11 @@ input:checked+.slider:before {
 	font-style: italic;
 }
 
+/* 1. MAIN LAYOUT & THEME */
 .manager-layout {
 	display: flex;
 	height: 100%;
-	background-color: #393E46;
+	background-color: #393E46; /*Mods background*/
 }
 
 .list-column {
@@ -99,6 +105,7 @@ input:checked+.slider:before {
 	border-left: 1px solid #1a1f26;
 }
 
+/* 2. MOD LIST & TOOLBAR */
 .mod-toolbar {
 	display: flex;
 	gap: 10px;
@@ -107,7 +114,7 @@ input:checked+.slider:before {
 
 .search-bar {
 	flex: 1;
-	background: #222831;
+	background: #222831; /*Search Installed Mods*/
 	border: 1px solid #4e555f;
 	padding: 10px 15px;
 	border-radius: 4px;
@@ -180,6 +187,7 @@ input:checked+.slider:before {
 	text-align: left;
 }
 
+/* 3. PAGINATION */
 .pagination-bar {
 	display: flex;
 	align-items: center;
@@ -219,6 +227,7 @@ input:checked+.slider:before {
 	font-size: 0.9rem;
 }
 
+/* 4. DETAIL HEADER & ACTIONS */
 .detail-header {
 	padding: 30px;
 	border-bottom: 1px solid #393E46;
@@ -321,6 +330,7 @@ input:checked+.slider:before {
 	cursor: not-allowed;
 }
 
+/* 5. MARKDOWN CONTENT AREA (The @html stuff) */
 .detail-content-area {
 	flex: 1;
 	overflow-y: auto;
@@ -335,6 +345,7 @@ input:checked+.slider:before {
 	font-family: sans-serif;
 }
 
+/* Tables Fix */
 .readme-body :global(table),
 .changelog-body :global(table) {
 	width: 100%;
@@ -359,6 +370,7 @@ input:checked+.slider:before {
 	color: #00adb5;
 }
 
+/* DOWNLOAD MODAL */
 .modal-backdrop {
 	position: fixed;
 	top: 0;
@@ -430,6 +442,7 @@ input:checked+.slider:before {
 	padding-bottom: 8px;
 	margin-top: 24px;
 	margin-bottom: 0px !important;
+	/* Forces the gap to close per your request */
 }
 
 .readme-body :global(h1),
@@ -654,6 +667,7 @@ input:checked+.slider:before {
     overflow-y: auto;
   }
 
+  /* Custom Scrollbar for the list */
   .scrollable-list::-webkit-scrollbar {
     width: 6px;
   }
@@ -665,6 +679,7 @@ input:checked+.slider:before {
     border-radius: 3px;
   }
 
+  /* Tag Styles */
   .mod-tags {
     display: flex;
     gap: 6px;
@@ -701,7 +716,7 @@ input:checked+.slider:before {
   .mod-text {
     flex: 1;
     display: flex;
-    flex-direction: row;
+    flex-direction: row; /* Change from column to row */
     align-items: center;
     justify-content: space-between;
     overflow: hidden;
@@ -719,7 +734,7 @@ input:checked+.slider:before {
   .mod-right-group {
     display: flex;
     align-items: center;
-    flex-shrink: 0;
+    flex-shrink: 0; /* Prevents the version/switch from being squished */
   }
 
   .mod-tags {
@@ -728,6 +743,7 @@ input:checked+.slider:before {
     align-items: center;
   }
 
+  /* Reset title and author margins to keep them in-line */
   .mod-title-small, .mod-author-small {
     margin: 0;
     white-space: nowrap;
@@ -738,6 +754,7 @@ input:checked+.slider:before {
     font-size: 0.85rem;
   }
 
+  /* The new Grey Tag */
   .tag-grey {
     background-color: rgba(238, 238, 238, 0.1);
     color: #aaaaaa;
@@ -747,13 +764,14 @@ input:checked+.slider:before {
   .ui-tag {
     font-size: 0.65rem;
     padding: 2px 8px;
-    border-radius: 4px;
+    border-radius: 4px; /* Slightly more square like the example */
     font-weight: 700;
     text-transform: uppercase;
   }
   
   .mod-row {
     display: grid;
+    /* Col 1: Icon | Col 2: Info (Title/Auth) | Col 3: Tags/Version | Col 4: Toggle */
     grid-template-columns: 42px 280px 1fr auto;
     align-items: center;
     gap: 15px;
@@ -762,6 +780,7 @@ input:checked+.slider:before {
     cursor: pointer;
   }
 
+  /* Container for Title and Author (Stacked) */
   .mod-info-stacked {
     display: flex;
     flex-direction: column;
@@ -782,10 +801,11 @@ input:checked+.slider:before {
     color: #888;
   }
 
+  /* Container for Tags and Version (In-line) */
   .mod-meta-section {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 8px; /* Keeps version right next to the tags */
   }
 
   .mod-tags-group {
@@ -808,8 +828,79 @@ input:checked+.slider:before {
     border: 1px solid rgba(238, 238, 238, 0.2);
   }
 
+  /* Column 4: Specific for the toggle switch */
   .mod-action-section {
     display: flex;
     justify-content: flex-end;
     min-width: 50px;
+  }
+  
+  /* Container handles the border so the expanded area seamlessly connects */
+  .mod-item-container {
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  /* Remove the bottom border from mod-row since the container handles it now */
+  .mod-item-container .mod-row {
+    border-bottom: none;
+  }
+
+  /* Expanded Area Styling */
+  .mod-expanded-area {
+    background: #2a2e35; /* Slightly darker to separate it from the main row */
+    padding: 12px 15px 15px 65px; /* 65px indents it nicely past the mod icon */
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mod-description {
+    font-size: 0.85rem;
+    color: #cccccc;
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  /* Buttons */
+  .mod-expanded-actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .action-btn {
+    padding: 6px 16px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: background-color 0.2s, transform 0.1s;
+  }
+
+  .action-btn:active {
+    transform: scale(0.97);
+  }
+
+  .btn-danger {
+    background-color: rgba(248, 113, 113, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(248, 113, 113, 0.3);
+  }
+
+  .btn-danger:hover {
+    background-color: rgba(248, 113, 113, 0.25);
+  }
+
+  .btn-secondary {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #eeeeee;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .btn-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.1);
   }

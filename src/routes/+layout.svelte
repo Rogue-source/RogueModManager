@@ -55,6 +55,7 @@
   let configMenuPos = { x: 0, y: 0 };
   let expandedConfig = null;
 
+  // Poll for manual folder changes
   let pollInterval;
   $: if (showDropdown && $selectedGame) {
     clearInterval(pollInterval);
@@ -100,11 +101,13 @@ async function openConfigPanel() {
     showConfigMenu = true;
   }
 
+  // 4. Open File logic (Using your existing openUrl import)
   async function openConfigFile() {
     showConfigMenu = false;
     if (!selectedConfigFile) return;
     
-    const appData = await invoke('get_appdata_path');
+    // Construct the path for Windows
+    const appData = await invoke('get_appdata_path'); // Ensure you have this simple helper in Rust
     const path = `${appData}\\RogueModManager\\${$selectedGame.id}\\profiles\\${$selectedProfile}\\BepInEx\\config\\${selectedConfigFile.name}`;
     
     await openUrl(path); 
@@ -113,29 +116,34 @@ async function openConfigPanel() {
 async function copyProfileCode() {
     showMenu = false;
     if (!targetProfile || !$selectedGame) return;
-
     try {
+      // 1. Get the list of installed mods (this reads your mods.yml)
       const installed: any[] = await invoke('get_installed_mods', {
         projectName: "RogueModManager",
         gameName: $selectedGame.id,
         profileName: targetProfile
       });
 
+      // 2. Format mod list to match the correct r2x YAML structure
       const modEntries = installed.map(mod => {
+        const v = mod.versionNumber;
         return [
           `  - name: ${mod.name}`,
-          `    author: ${mod.owner}`,
-          `    version: ${mod.version}`,
-          `    enabled: true`
+          `    version:`,
+          `      major: ${v.major}`,
+          `      minor: ${v.minor}`,
+          `      patch: ${v.patch}`,
+          `    enabled: ${mod.enabled}`
         ].join('\n');
       }).join('\n');
 
       const yamlContent = `profileName: ${targetProfile}\nmods:\n${modEntries}`;
 
+      // 3. Bundle Config Files (Rest of your existing logic)
       const filesToExport = [
         { path: "export.r2x", content: yamlContent }
       ];
-
+      
       try {
         const configs: any[] = await invoke('get_config_files', {
           gameName: $selectedGame.id,
@@ -151,6 +159,7 @@ async function copyProfileCode() {
         console.warn("No configs found to bundle:", e);
       }
 
+      // 4. Encode and Upload
       const encodedData: string = await invoke('encode_profile_data', {
         files: filesToExport
       });
@@ -159,9 +168,7 @@ async function copyProfileCode() {
 
       const res = await tauriFetch("https://thunderstore.io/api/experimental/legacyprofile/create/", {
         method: "POST",
-        headers: {
-          'Content-Type': 'text/plain'
-        },
+        headers: { 'Content-Type': 'text/plain' },
         body: finalPayload 
       });
 
@@ -177,7 +184,7 @@ async function copyProfileCode() {
       }
     } catch (err) {
       console.error("Export failed:", err);
-      alert("Failed to export. Check the developer console for details.");
+      alert("Failed to export profile.");
     }
   }
   
@@ -194,19 +201,23 @@ async function handleImportCode() {
       modsRaw.map(async (mod) => {
         try {
           const res = await tauriFetch(`https://thunderstore.io/api/experimental/package/${mod.owner}/${mod.name}/`);
-		  
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
+
+          // Move the BepInEx detection inside the successful try block
+          const isBepInEx = data.name?.toLowerCase().includes('bepinex') || data.owner?.toLowerCase() === 'bepinex';
 
           return {
             name: data.name,
             owner: data.owner,
             version: data.latest?.version_number || mod.version,
             icon: data.latest?.icon || null,
-            community: data.community_listings?.[1]?.community || "unknown"
+            // Use index [0] for game-specific communities, force BepInEx to unknown
+            community: isBepInEx ? "unknown" : (data.community_listings?.[0]?.community || "unknown")
           };
         } catch (err) {
           console.warn(`Failed to fetch metadata for ${mod.name}:`, err);
+          // Safe fallback return matching the mod properties if an API call fails
           return {
             name: mod.name,
             owner: mod.owner,
@@ -219,14 +230,33 @@ async function handleImportCode() {
     );
 
     const validMod = fullMods.find(m => m.community !== "unknown");
-    const gameName = validMod?.community || importProfileData?.game || "Unknown Game";
+
+    // 1. Strict Community Validation Check
+    if (validMod && $selectedGame) {
+      const incomingCommunity = validMod.community.toLowerCase();
+      const currentId = $selectedGame.id?.toLowerCase();
+      const currentSlug = $selectedGame.slug?.toLowerCase();
+
+      // Block import if the incoming profile community doesn't match current game environment
+      if (incomingCommunity !== currentId && incomingCommunity !== currentSlug) {
+        alert(`Import Blocked!\n\nThis profile code is for the "${validMod.community}" community, but you are currently managing "${$selectedGame.name}".`);
+        showProfileModal = true; // Keep profile manager screen open
+        return; // Terminate execution here to block import modal from opening
+      }
+    }
+
+    // 2. Format community name (Hyphens -> Spaces & Title Case capitalization)
+    const rawGameName = validMod?.community || "Unknown Game";
+    const gameName = rawGameName
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
 
     importProfileData = {
       game: gameName,
       mods: fullMods,
       rawCode: code
     };
-    
     showImportModal = true;
 
   } catch (e) {
@@ -243,12 +273,14 @@ async function handleImportCode() {
         projectName: "RogueModManager", 
         gameName: $selectedGame.id 
       });
-        
+      
+      // Ensure Default always exists	  
       if (!list.includes("Default")) {
         list = ["Default", ...list];
       }
       profileList.set(list);
       
+      // Fallback to Default if current profile disappeared
       if (!$profileList.includes($selectedProfile)) {
         selectedProfile.set("Default");
       }
@@ -259,6 +291,7 @@ async function handleImportCode() {
     }
   }
 
+  // Reactive for settings
   $: if (showSettings) {
     if ($selectedGame) {
       tempPath = $selectedGame.executablePath || "Not located. Click browse...";
@@ -326,6 +359,7 @@ async function handleImportCode() {
     }
   }
 
+  // === New Modal Functions ===
   async function createProfileFromModal() {
     const name = newProfileName.trim();
     if (!name || name.toLowerCase() === "default") return;
@@ -351,6 +385,7 @@ async function handleImportCode() {
     importCode = "";
   }
 
+  // Launch with safety guard for null executablePath
   async function launchModdedGame() {
     if (!$selectedGame) return;
 

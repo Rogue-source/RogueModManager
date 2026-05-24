@@ -29,6 +29,9 @@
       "allow": [
         {
           "url": "https://thunderstore.io/api/experimental/*"
+        },
+		{
+          "url": "https://thunderstore.io/api/v1/package-metrics/*"
         }
       ]
     },

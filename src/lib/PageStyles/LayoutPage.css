@@ -1,5 +1,5 @@
 :root {
-	--bg-sidebar: #1a1b3c;
+	--bg-sidebar: #1a1b3c; /*Mod background card*/
 	--bg-main: #393e46;
 	--text-white: #eeeeee;
 	--accent-teal: #00adb5;
@@ -36,12 +36,12 @@
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(34, 40, 49, 0.8);
+  background: rgba(34, 40, 49, 0.8); /* Dark semi-transparent background */
   backdrop-filter: blur(4px);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 9999;
+  z-index: 9999; /* Ensure it stays above everything */
 }
 
 .loader-container {
@@ -186,7 +186,7 @@ body {
 
 .select-trigger {
 	width: 100%;
-	background: #393E46;
+	background: #393E46; /*Profile dropdown*/
 	border: 1px solid #4e555f;
 	color: #eeeeee;
 	padding: 10px;
@@ -302,6 +302,7 @@ body {
 	opacity: 0.7;
 }
 
+/* Sidebar styles updated for labels */
 .nav-label {
 	padding: 0 30px;
 	font-size: 0.7rem;
@@ -319,13 +320,13 @@ body {
 	display: flex;
 	height: 100vh;
 	width: 100vw;
-	background-color: #393E46;
+	background-color: #393E46;  /*Game select background*/
 	color: #eeeeee;
 }
 
 .sidebar {
 	width: 260px;
-	background-color: #222831;
+	background-color: #222831;   /*Sidebar Color*/
 	display: flex;
 	flex-direction: column;
 	padding: 20px 0;
@@ -397,6 +398,7 @@ body {
 .launch-btn {
 	width: 100%;
 	background: #4caf50;
+	/* Green theme */
 	color: white;
 	border: none;
 	padding: 15px;
@@ -405,6 +407,7 @@ body {
 	font-size: 1.1rem;
 	cursor: pointer;
 	margin-top: 10px;
+	/* Space below back button */
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -560,6 +563,7 @@ body {
     color: #e0e0e0;
   }
 
+  /* Dropdown delete button color */
   .menu-item.delete {
     color: #ff4d4d;
   }
@@ -572,6 +576,10 @@ body {
     opacity: 0.5;
     cursor: not-allowed;
   }
+
+ /* =========================
+   CONFIG EDITOR
+========================= */
 
 .config-editor-card {
 	width: 760px;
@@ -734,6 +742,8 @@ body {
 	color: #7e8791;
 }
 
+/* Config context menu improvements */
+
 .context-menu {
 	background: #222831;
 	border: 1px solid #4e555f;
@@ -776,6 +786,10 @@ body {
 .context-menu .disabled:hover {
 	background: transparent;
 }
+
+/* =========================
+   EXPANDABLE CONFIG ITEMS
+========================= */
 
 .config-entry {
 	display: flex;

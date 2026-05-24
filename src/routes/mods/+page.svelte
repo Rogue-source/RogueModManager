@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { open } from '@tauri-apps/plugin-shell';
   import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
   import { invoke } from '@tauri-apps/api/core';
   import { marked } from 'marked';
   import { onMount } from 'svelte';
   import "$lib/PageStyles/ModPage.css";
-  
+  import { open as openUrl } from '@tauri-apps/plugin-shell';
   import DOMPurify from 'dompurify';
+  
 import { 
     selectedGame,
     activeModTab, 
@@ -17,10 +17,6 @@ import {
     detailTab,
     modsRequiringUpdate
 } from '$lib/store';
-  
-  onMount(() => {
-  checkForUpdates();
-});
 
 // --- Filter State Variables ---
   let showFilterPanel = false;
@@ -33,7 +29,7 @@ import {
   let showDeprecated = false;
   let showTags = true;
   let availableCategories: string[] = [];
-  
+  let installedDescription = "Loading description...";
   let modSearch = "";
   let installedSearch = "";
   let readmeContent = "Loading...";
@@ -52,18 +48,47 @@ import {
   });
 
   $: totalPages = Math.ceil(filteredMods.length / modsPerPage) || 1;
-
+	$: if ($focusedMod && $activeModTab === 'installed') {
+      fetchInstalledDescription($focusedMod);
+  }
   $: if (modSearch || $activeModTab === 'online') currentPage = 1;
   $: paginatedMods = filteredMods.slice(
     (currentPage - 1) * modsPerPage,
     currentPage * modsPerPage
   );
+  
+$: if ($selectedProfile && $globalMods.length > 0) {
+    checkForUpdates();
+}
 
   $: if (modSearch || $activeModTab === 'online') currentPage = 1;
 
   activeModTab.subscribe(() => focusedMod.set(null));
 
-  $: modDownloads = $focusedMod?.downloads ?? $focusedMod?.total_downloads ?? 0;
+  let modDownloads: number | string = 0;
+
+  // Reactively trigger the fetch when a mod is focused in the online tab
+  $: if ($focusedMod && $activeModTab === 'online') {
+      fetchLiveDownloads($focusedMod.owner, $focusedMod.name);
+  }
+
+  async function fetchLiveDownloads(author: string, modName: string) {
+      modDownloads = '...'; // Shows a loading indicator briefly
+      try {
+          const url = `https://thunderstore.io/api/v1/package-metrics/${author}/${modName}/`;
+          const response = await tauriFetch(url, { method: 'GET' });
+          
+          if (response.ok) {
+              const data = await response.json();
+              modDownloads = data.downloads;
+          } else {
+              modDownloads = 0;
+          }
+      } catch (error) {
+          console.error("Error fetching metrics:", error);
+          modDownloads = 0;
+      }
+  }
   $: modUpdated = $focusedMod?.date_updated 
     ? new Date($focusedMod.date_updated).toLocaleDateString() 
     : 'Unknown';
@@ -101,6 +126,45 @@ $: if (modSearch || installedSearch || selectedTypes.length || filterSort || sel
     } else {
       selectedTypes = [...selectedTypes, type];
     }
+  }
+  
+  async function fetchInstalledDescription(mod: any) {
+      installedDescription = "Loading description...";
+      try {
+          const author = mod.owner ?? mod.authorName ?? mod.author;
+          let pkgName = mod.name || "";
+          
+          // Handle splitting out the pure package name if it contains the author prefix
+          if (!mod.owner && pkgName.includes('-')) {
+              const parts = pkgName.split('-');
+              parts.shift();
+              pkgName = parts.join('-');
+          }
+
+          if (!author || !pkgName) {
+              installedDescription = "No description available for this mod.";
+              return;
+          }
+
+          const url = `https://thunderstore.io/api/experimental/package/${author}/${pkgName}/`;
+          const response = await tauriFetch(url, { method: 'GET' });
+          
+          if (response.ok) {
+              const data = await response.json();
+              // Extract description from latest version object, falling back to root level
+              installedDescription = data.latest?.description || data.description || "No description available for this mod.";
+          } else {
+              // Quick fallback to the pre-loaded global metadata if the specific endpoint hits an issue
+              const globalMeta = $globalMods.find(g => 
+                  g.full_name?.toLowerCase() === mod.name?.toLowerCase() ||
+                  g.name?.toLowerCase() === pkgName.toLowerCase()
+              );
+              installedDescription = globalMeta?.versions?.[0]?.description || globalMeta?.description || "No description available for this mod.";
+          }
+      } catch (error) {
+          console.error("Error fetching installed description:", error);
+          installedDescription = "No description available for this mod.";
+      }
   }
   
   function toggleCategory(cat: string) {
@@ -146,12 +210,16 @@ $: filteredMods = $globalMods.filter(m => {
     return 0;
   });
 
-  $: filteredInstalledMods = installedMods.filter(m => {
+$: filteredInstalledMods = installedMods.filter(m => {
     const nameMatch = (m.name || '').toLowerCase().includes(installedSearch.toLowerCase());
     const ownerMatch = (m.authorName || m.author || '').toLowerCase().includes(installedSearch.toLowerCase());
     if (!nameMatch && !ownerMatch) return false;
 
-    const globalMeta = $globalMods.find(g => g.name === m.name && g.owner === (m.authorName || m.author));
+    // FIX: Match using full_name or extract the pure package name fallback
+    const globalMeta = $globalMods.find(g => 
+      g.full_name?.toLowerCase() === m.name?.toLowerCase() ||
+      (g.name?.toLowerCase() === m.name?.split('-').slice(1).join('-').toLowerCase() && g.owner?.toLowerCase() === (m.authorName || m.author)?.toLowerCase())
+    );
     
     // Deprecated
     const isDeprecated = globalMeta ? globalMeta.is_deprecated : false;
@@ -171,8 +239,9 @@ $: filteredMods = $globalMods.filter(m => {
 
     return true;
   }).sort((a, b) => {
-    const globalA = $globalMods.find(g => g.name === a.name && g.owner === (a.authorName || a.author));
-    const globalB = $globalMods.find(g => g.name === b.name && g.owner === (b.authorName || b.author));
+    // FIX: Match global meta for sorting accurately
+    const globalA = $globalMods.find(g => g.full_name?.toLowerCase() === a.name?.toLowerCase());
+    const globalB = $globalMods.find(g => g.full_name?.toLowerCase() === b.name?.toLowerCase());
 
     if (filterSort === "Last Updated") {
       const dateA = globalA?.date_updated ? new Date(globalA.date_updated).getTime() : 0;
@@ -188,7 +257,43 @@ $: filteredMods = $globalMods.filter(m => {
     return 0;
   });
 
+// --- Installed Mod Actions ---
+  function handleWebsiteClick(mod: any, globalMeta: any) {
+    const author = globalMeta?.owner || mod.authorName;
+    const name = globalMeta?.name || mod.name.split("-").slice(1).join("-");
+    const GameName = $selectedGame.id
+    
+    if (author && name) {
+      const url = `https://thunderstore.io/c/${GameName}/p/${author}/${name}/`;
+      openUrl(url);
+    }
+  }
 
+async function uninstallMod(mod: any) {
+      try {
+        await invoke('uninstall_mod', { 
+          gameName: $selectedGame.id,
+          profileName: $selectedProfile,
+          modName: mod.name,
+          author: mod.authorName, // Changed from authorName to author
+          modId: mod.name
+        });
+        
+        // Refresh the list with the correct matching argument names
+        const res = await invoke('get_installed_mods', { 
+          projectName: "RogueModManager",
+          gameName: $selectedGame.id, 
+          profileName: $selectedProfile 
+        });
+        
+        installedMods = res;
+        focusedMod.set(null);
+        checkForUpdates();
+      } catch (err) {
+        alert(`Error uninstalling: ${err}`);
+      }
+  }
+  
 async function fetchInstalledMods() {
   if (!$selectedGame || !$selectedProfile) return;
 
@@ -291,28 +396,95 @@ async function syncLoader() {
     return Array.from(resolved.values());
   }
 
-  async function checkForUpdates() {
-    const installed = await invoke('get_installed_mods', {
-      projectName: "RogueManager",
-      gameName: $selectedGame.id,
-      profileName: $selectedProfile
-    });
+async function checkForUpdates() {
+    try {
+        const installed: any[] = await invoke("get_installed_mods", {
+            projectName: "RogueModManager",
+            gameName: $selectedGame.id,
+            profileName: $selectedProfile
+        });
 
-    let updatesFound = [];
-    for (const mod of installed) {
-      const parts = mod.name.split('-');
-	  const pkgName = parts.slice(1).join('-');
+        let outdated: any[] = [];
 
-		const res = await tauriFetch(`https://thunderstore.io/api/experimental/package/${mod.authorName}/${pkgName}/`);
-      if (res.ok) {
-        const data = await res.json();
-        if (isUpdateAvailable(mod.versionNumber, data.latest.version_number)) {
-          updatesFound.push({ ...mod, latestVersion: data.latest.version_number, download_url: data.latest.download_url });
+        for (const localMod of installed) {
+            const remoteMod = $globalMods.find(m => 
+                m.full_name?.toLowerCase() === localMod.name?.toLowerCase() ||
+                (m.name?.toLowerCase() === localMod.name?.toLowerCase() && m.owner?.toLowerCase() === localMod.authorName?.toLowerCase())
+            );
+
+            // Navigate into Thunderstore's nested version array to get the real data
+            const latestVerData = remoteMod?.versions?.[0] || remoteMod?.latest;
+
+            if (remoteMod && latestVerData && latestVerData.version_number) {
+                // Parse strings into comparable numbers
+                const [rMajor, rMinor, rPatch] = latestVerData.version_number.split('.').map(Number);
+                const { major, minor, patch } = localMod.versionNumber;
+
+                const isNewer = rMajor > major ||
+                                (rMajor === major && rMinor > minor) || 
+                                (rMajor === major && rMinor === minor && rPatch > patch);
+
+                if (isNewer) {
+                    outdated.push({
+                        ...localMod,
+                        latest_version: latestVerData.version_number,
+                        download_url: latestVerData.download_url, 
+                        dependencies: latestVerData.dependencies || []
+                    });
+                }
+            }
         }
-      }
+
+        // Populate the global update store to instantly trigger the UI banner
+        modsRequiringUpdate.set(outdated);
+    } catch (err) {
+        console.error("Failed to parse mod updates:", err);
     }
-    modsRequiringUpdate.set(updatesFound);
-  }
+}
+
+async function updateAllMods() {
+    const targets = $modsRequiringUpdate;
+    if (targets.length === 0) return;
+
+    for (const mod of targets) {
+        try {
+            const fullName = `${mod.authorName}-${mod.name}-${mod.latest_version}`;
+            
+            // Look inside your updateAllMods() loop and swap these two fields:
+await invoke("install_mod", {
+    appHandle: undefined,
+    downloadUrl: mod.download_url,
+    projectName: "RogueModManager",
+    gameName: $selectedGame.id, // FIX: .slug -> .id
+    profileName: $selectedProfile,
+    modName: fullName
+});
+
+await invoke("register_mod_install", {
+    projectName: "RogueModManager",
+    gameName: $selectedGame.id, // FIX: .slug -> .id
+    profileName: $selectedProfile,
+    modId: mod.name,
+    author: mod.authorName,
+    version: mod.latest_version,
+    deps: mod.dependencies,
+    icon: mod.icon || null
+});
+        } catch (error) {
+            console.error(`Failed updating ${mod.name}:`, error);
+        }
+    }
+
+    // Force refresh local lists and clear out the active update banner
+    await checkForUpdates();
+	
+	const res = await invoke("get_installed_mods", {
+        projectName: "RogueModManager",
+        gameName: $selectedGame.id,
+        profileName: $selectedProfile
+    });
+    installedMods = res;
+}
   
   async function selectMod(mod: any) {
     focusedMod.set(mod);
@@ -471,16 +643,16 @@ if (!modToUse.owner && pkgName.includes('-')) {
   }
   
 </script>
-{#if $modsRequiringUpdate.length > 0}
+{#if $modsRequiringUpdate && $modsRequiringUpdate.length > 0}
   <div class="update-banner">
-    <div class="update-info">
-      <span class="update-icon">⁉</span>
-      <p><b>{$modsRequiringUpdate.length}</b> mod updates available: 
-         {$modsRequiringUpdate.map(m => m.displayName || m.name).join(', ')}
-      </p>
+    <div class="update-banner-text">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="update-icon">
+        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+      </svg>
+      <span>Updates are available for <strong>{$modsRequiringUpdate.length}</strong> {$modsRequiringUpdate.length === 1 ? 'mod' : 'mods'}.</span>
     </div>
-    <button class="update-all-btn" on:click={() => downloadMod($modsRequiringUpdate[0])} disabled={isDownloading}>
-      {isDownloading ? 'Updating...' : 'Update Now'}
+    <button class="update-banner-btn" on:click={updateAllMods}>
+      Update All
     </button>
   </div>
 {/if}
@@ -542,45 +714,62 @@ if (!modToUse.owner && pkgName.includes('-')) {
       <div class="empty-state-msg">No online mods found.</div>
     {/if}
 
-  {:else if $activeModTab === 'installed'}
+{:else if $activeModTab === 'installed'}
     {#if filteredInstalledMods.length > 0}
       {#each filteredInstalledMods as mod}
-        {@const globalMeta = $globalMods.find(g => g.name === mod.name && g.owner === (mod.authorName || mod.author))}
-        <div 
-          role="presentation" 
-          class="mod-row {$focusedMod?.name === mod.name ? 'focused' : ''}" 
-          on:click={() => focusedMod.set(mod)}>
-          <img src={mod.icon} alt="" class="mod-icon-small" />
-          
-          <div class="mod-info-stacked">
-            <span class="mod-title-small">{mod.name}</span>
-            <span class="mod-author-small">by {mod.authorName || 'Unknown'}</span>
+        {@const globalMeta = $globalMods.find(g => 
+          g.full_name?.toLowerCase() === mod.name?.toLowerCase() ||
+          g.name?.toLowerCase() === mod.name?.toLowerCase() ||
+          (g.name?.toLowerCase() === mod.name?.split('-').slice(1).join('-').toLowerCase() && 
+           g.owner?.toLowerCase() === (mod.authorName || mod.author)?.toLowerCase())
+        )}
+        {@const isExpanded = $focusedMod?.name === mod.name}
+        
+        <div class="mod-item-container">
+          <div 
+            role="presentation" 
+            class="mod-row {isExpanded ? 'focused' : ''}" 
+            on:click={() => focusedMod.set(isExpanded ? null : mod)}
+          >
+            <img src={mod.icon} alt="" class="mod-icon-small" />
+            
+            <div class="mod-info-stacked">
+              <span class="mod-title-small">{mod.name}</span>
+              <span class="mod-author-small">by {mod.authorName || 'Unknown'}</span>
+            </div>
+
+            <div class="mod-meta-section">
+              <span class="ui-tag tag-grey">
+  v{mod.versionNumber.major}.{mod.versionNumber.minor}.{mod.versionNumber.patch}
+</span>
+            </div>
+
+            <div class="mod-action-section">
+              <label class="switch" on:click|stopPropagation>
+                <input type="checkbox" checked={mod.enabled} on:change={() => handleToggle(mod.name, mod.enabled)}>
+                <span class="slider round"></span>
+              </label>
+            </div>
           </div>
 
-          <div class="mod-meta-section">
-            {#if showTags && globalMeta}
-              <div class="mod-tags-group">
-                {#if globalMeta.is_deprecated}
-                  <span class="ui-tag tag-red">Deprecated</span>
-                {/if}
-                {#if globalMeta.categories?.includes("Modpacks")}
-                  <span class="ui-tag tag-yellow">Modpack</span>
-                {:else}
-                  <span class="ui-tag tag-green">Mod</span>
-                {/if}
+          {#if isExpanded}
+            <div class="mod-expanded-area">
+              <p class="mod-description">
+  {installedDescription}
+</p>
+              
+              <div class="mod-expanded-actions">
+<button class="action-btn btn-danger" on:click={() => uninstallMod(mod)}>
+       Uninstall
+    </button>
+    <button class="action-btn btn-secondary" on:click={() => handleWebsiteClick(mod, globalMeta)}>
+       Website
+    </button>
               </div>
-            {/if}
-          </div>
-
-          <div class="mod-action-section">
-            <label class="switch" on:click|stopPropagation>
-              <input type="checkbox" checked={mod.enabled} on:change={() => handleToggle(mod.name, mod.enabled)}>
-              <span class="slider round"></span>
-            </label>
-          </div>
+            </div>
+          {/if}
         </div>
       {/each}
-
     {:else}
       <div class="empty-state-msg">
         {#if installedMods.length === 0}

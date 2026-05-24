@@ -12,10 +12,12 @@ export async function fetchModsWithCache(gameIdentifier: string, apiUrl: string,
       try {
         const fileStat = await fs.stat(cacheFileName, { baseDir: fs.BaseDirectory.AppCache });
         
+        // Robust date handling
         const now = Date.now();
         let mtimeMs = 0;
 
         if (fileStat.mtime) {
+            // Some environments return a Date object, others a number or string
             mtimeMs = new Date(fileStat.mtime).getTime();
         }
 
