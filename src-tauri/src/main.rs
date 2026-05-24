@@ -95,7 +95,7 @@ async fn encode_profile_data(files: Vec<ExportFile>) -> Result<String, String> {
 async fn resolve_legacy_profile(code: String) -> Result<Vec<ProfileMod>, String> {
     let url = format!("https://thunderstore.io/api/experimental/legacyprofile/get/{}", code);
 
-let client = reqwest::Client::new();
+    let client = reqwest::Client::new();
     let resp = client.get(&url)
         .send()
         .await
@@ -178,6 +178,36 @@ async fn install_mod(
     profile_path.push("profiles");
     profile_path.push(&profile_name);
 
+    let parts: Vec<&str> = mod_name.split('-').collect();
+    if parts.len() < 3 {
+        return Err("Invalid mod name format. Expected Author-Name-Version".to_string());
+    }
+    let author = parts[0];
+    let version_str = parts.last().unwrap_or(&"0.0.0");
+    let name = parts[1..parts.len()-1].join("-");
+    let target_version = parse_version(version_str);
+    
+    let clean_mod_folder_name = format!("{}-{}", author, name);
+
+    let yaml_path = profile_path.join("mods.yml");
+    if yaml_path.exists() {
+        if let Ok(content) = fs::read_to_string(&yaml_path) {
+            if let Ok(existing_mods) = serde_yaml::from_str::<Vec<ModManifestEntry>>(&content) {
+                let already_installed = existing_mods.iter().any(|m| 
+                    m.name == name && 
+                    m.authorName == author && 
+                    m.versionNumber.major == target_version.major &&
+                    m.versionNumber.minor == target_version.minor &&
+                    m.versionNumber.patch == target_version.patch
+                );
+
+                if already_installed {
+                    println!("Skipping download for {} - already installed.", mod_name);
+                    return Ok(());
+                }
+            }
+        }
+    }
     let client = reqwest::Client::new();
     let response_bytes = client.get(download_url)
         .send()
@@ -190,47 +220,67 @@ async fn install_mod(
     let cursor = Cursor::new(response_bytes);
     let mut archive = zip::ZipArchive::new(cursor).map_err(|e| e.to_string())?;
 
-let mut paths: Vec<PathBuf> = Vec::new();
+    let mut paths: Vec<PathBuf> = Vec::new();
 
-for i in 0..archive.len() {
-    if let Ok(file) = archive.by_index(i) {
-        if let Some(path) = file.enclosed_name() {
-            paths.push(path.to_path_buf());
+    for i in 0..archive.len() {
+        if let Ok(file) = archive.by_index(i) {
+            if let Some(path) = file.enclosed_name() {
+                paths.push(path.to_path_buf());
+            }
         }
     }
-}
 
-let mut found_root: Option<PathBuf> = None;
+    let mut found_root: Option<PathBuf> = None;
 
-for path in &paths {
-    if let Some(filename) = path.file_name() {
-        if filename == "doorstop_config.ini" {
-            let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
+    for path in &paths {
+        if let Some(filename) = path.file_name() {
+            if filename == "doorstop_config.ini" {
+                let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
 
-            let mut has_winhttp = false;
-            let mut has_bepinex_folder = false;
+                let mut has_winhttp = false;
+                let mut has_bepinex_folder = false;
 
-            for p in &paths {
-                if p.parent() == Some(parent.as_path()) {
-                    if let Some(name) = p.file_name() {
-                        if name == "winhttp.dll" {
-                            has_winhttp = true;
+                for p in &paths {
+                    if p.parent() == Some(parent.as_path()) {
+                        if let Some(name) = p.file_name() {
+                            if name == "winhttp.dll" {
+                                has_winhttp = true;
+                            }
                         }
+                    }
+
+                    if p.starts_with(parent.join("BepInEx")) {
+                        has_bepinex_folder = true;
                     }
                 }
 
-                if p.starts_with(parent.join("BepInEx")) {
-                    has_bepinex_folder = true;
+                if has_winhttp && has_bepinex_folder {
+                    found_root = Some(parent);
+                    break;
                 }
-            }
-
-            if has_winhttp && has_bepinex_folder {
-                found_root = Some(parent);
-                break;
             }
         }
     }
-}
+
+
+    let plugins_dir = profile_path.join("BepInEx").join("plugins");
+    if plugins_dir.exists() {
+        if let Ok(entries) = fs::read_dir(&plugins_dir) {
+            for entry in entries.flatten() {
+                if entry.path().is_dir() {
+                    if let Some(folder_str) = entry.file_name().to_str() {
+                        if folder_str.starts_with(&format!("{}-{}-", author, name)) {
+                            let _ = fs::remove_dir_all(entry.path());
+                        }
+                        if folder_str == clean_mod_folder_name {
+                            let _ = fs::remove_dir_all(entry.path());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
 
@@ -252,7 +302,7 @@ for path in &paths {
             let mut plugin_path = profile_path.clone();
             plugin_path.push("BepInEx");
             plugin_path.push("plugins");
-            plugin_path.push(&mod_name);
+            plugin_path.push(&clean_mod_folder_name);
             plugin_path.join(outpath)
         };
 
@@ -512,7 +562,7 @@ pub struct ModManifestEntry {
     pub versionNumber: ModVersion,
     pub enabled: bool,
     pub dependencies: Vec<String>,
-	pub icon: Option<String>,
+    pub icon: Option<String>,
 }
 
 fn parse_version(v: &str) -> ModVersion {
@@ -522,6 +572,57 @@ fn parse_version(v: &str) -> ModVersion {
         minor: *parts.get(1).unwrap_or(&1),
         patch: *parts.get(2).unwrap_or(&0),
     }
+}
+
+#[tauri::command]
+async fn uninstall_mod(
+    game_name: String, 
+    profile_name: String, 
+    mod_id: String, 
+    author: String
+) -> Result<(), String> {
+    let app_data = std::env::var("APPDATA").map_err(|_| "Failed to resolve APPDATA directory".to_string())?;
+    
+    let base_path: PathBuf = [
+        &app_data, 
+        "RogueModManager", 
+        &game_name, 
+        "profiles", 
+        &profile_name
+    ].iter().collect();
+
+    let mod_folder = base_path.join("BepInEx").join("plugins").join(format!("{}-{}", author, mod_id));
+    if mod_folder.exists() {
+        fs::remove_dir_all(&mod_folder).map_err(|e| format!("Failed to delete mod folder: {}", e))?;
+    }
+
+    let plugins_dir = base_path.join("BepInEx").join("plugins");
+    if plugins_dir.exists() {
+        if let Ok(entries) = fs::read_dir(&plugins_dir) {
+            for entry in entries.flatten() {
+                if entry.path().is_dir() {
+                    if let Some(folder_str) = entry.file_name().to_str() {
+                        if folder_str.starts_with(&format!("{}-{}-", author, mod_id)) {
+                            let _ = fs::remove_dir_all(entry.path());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let yaml_path = base_path.join("mods.yml");
+    if yaml_path.exists() {
+        let content = fs::read_to_string(&yaml_path).map_err(|e| e.to_string())?;
+        let mut mods: Vec<ModManifestEntry> = serde_yaml::from_str(&content).unwrap_or_default();
+        
+        mods.retain(|m| !(m.name == mod_id && m.authorName == author));
+        
+        let yaml = serde_yaml::to_string(&mods).map_err(|e| e.to_string())?;
+        fs::write(yaml_path, yaml).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -574,7 +675,7 @@ fn toggle_mod_status(app_handle: tauri::AppHandle, project_name: String, game_na
     path.push("mods.yml");
 
     let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let mut mods: Vec<ModManifestEntry> = serde_yaml::from_str(&content).map_err(|e| e.to_string())?;
+    let mut mods: Vec<ModManifestEntry> = serde_yaml::from_str(&content).unwrap_or_default();
 
     if let Some(m) = mods.iter_mut().find(|m| m.name == mod_id) {
         m.enabled = enabled;
@@ -595,7 +696,7 @@ async fn register_mod_install(
     author: String, 
     version: String, 
     deps: Vec<String>,
-	icon: Option<String>
+    icon: Option<String>
 ) -> Result<(), String> {
     let mut path = app_handle.path().config_dir().unwrap();
     path.push(&project_name); path.push(&game_name); path.push("profiles"); path.push(&profile_name);
@@ -614,7 +715,7 @@ async fn register_mod_install(
         versionNumber: parse_version(&version),
         enabled: true,
         dependencies: deps,
-		icon,
+        icon,
     });
 
     let yaml = serde_yaml::to_string(&mods).map_err(|e| e.to_string())?;
@@ -624,28 +725,29 @@ async fn register_mod_install(
 
 fn main() {
     tauri::Builder::default()
-	    .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init()) 
-		.plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             install_mod,
             get_installed_mods,
-			toggle_mod_status,
-			resolve_legacy_profile,
+            toggle_mod_status,
+            resolve_legacy_profile,
             register_mod_install,
             launch_game,
-			sync_profile_loader,
-			list_profiles,
-			create_profile,
-			get_config_files,
-			delete_profile,
-			get_game_location,
-			save_game_location,
-			encode_profile_data,
-			discover_game_path
+            sync_profile_loader,
+            list_profiles,
+            create_profile,
+            uninstall_mod,
+            get_config_files,
+            delete_profile,
+            get_game_location,
+            save_game_location,
+            encode_profile_data,
+            discover_game_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

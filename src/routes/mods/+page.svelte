@@ -18,13 +18,9 @@ import {
     modsRequiringUpdate
 } from '$lib/store';
 
-// --- Filter State Variables ---
   let showFilterPanel = false;
-  
-  // Use arrays for multi-select
-  let selectedTypes: string[] = ["Mods"]; // Default: show only Mods
-  let selectedCategories: string[] = [];  // Empty means "Show All"
-  
+  let selectedTypes: string[] = ["Mods"];
+  let selectedCategories: string[] = [];
   let filterSort = "Last Updated"; 
   let showDeprecated = false;
   let showTags = true;
@@ -67,13 +63,12 @@ $: if ($selectedProfile && $globalMods.length > 0) {
 
   let modDownloads: number | string = 0;
 
-  // Reactively trigger the fetch when a mod is focused in the online tab
   $: if ($focusedMod && $activeModTab === 'online') {
       fetchLiveDownloads($focusedMod.owner, $focusedMod.name);
   }
 
   async function fetchLiveDownloads(author: string, modName: string) {
-      modDownloads = '...'; // Shows a loading indicator briefly
+      modDownloads = '...';
       try {
           const url = `https://thunderstore.io/api/v1/package-metrics/${author}/${modName}/`;
           const response = await tauriFetch(url, { method: 'GET' });
@@ -105,17 +100,15 @@ $: if ($selectedProfile && $globalMods.length > 0) {
     fetchInstalledMods();
   }
 
-  // Dynamically extract unique categories from Thunderstore data
 $: if ($globalMods && $globalMods.length > 0) {
     const catSet = new Set<string>();
     $globalMods.forEach(m => {
       if (m.categories) m.categories.forEach(c => catSet.add(c));
     });
-    catSet.delete("Modpacks"); // Handled by selectedTypes
+    catSet.delete("Modpacks");
     availableCategories = Array.from(catSet).sort();
   }
 
-  // Reset to page 1 whenever any filter or search changes
 $: if (modSearch || installedSearch || selectedTypes.length || filterSort || selectedCategories.length || showDeprecated !== null || $activeModTab) {
     currentPage = 1;
   }
@@ -134,7 +127,6 @@ $: if (modSearch || installedSearch || selectedTypes.length || filterSort || sel
           const author = mod.owner ?? mod.authorName ?? mod.author;
           let pkgName = mod.name || "";
           
-          // Handle splitting out the pure package name if it contains the author prefix
           if (!mod.owner && pkgName.includes('-')) {
               const parts = pkgName.split('-');
               parts.shift();
@@ -151,10 +143,8 @@ $: if (modSearch || installedSearch || selectedTypes.length || filterSort || sel
           
           if (response.ok) {
               const data = await response.json();
-              // Extract description from latest version object, falling back to root level
               installedDescription = data.latest?.description || data.description || "No description available for this mod.";
           } else {
-              // Quick fallback to the pre-loaded global metadata if the specific endpoint hits an issue
               const globalMeta = $globalMods.find(g => 
                   g.full_name?.toLowerCase() === mod.name?.toLowerCase() ||
                   g.name?.toLowerCase() === pkgName.toLowerCase()
@@ -175,22 +165,17 @@ $: if (modSearch || installedSearch || selectedTypes.length || filterSort || sel
     }
   }
 
-  // --- Online Mods Filtering & Sorting ---
 $: filteredMods = $globalMods.filter(m => {
-    // 1. Search
     const nameMatch = m.name.toLowerCase().includes(modSearch.toLowerCase());
     const ownerMatch = m.owner.toLowerCase().includes(modSearch.toLowerCase());
     if (!nameMatch && !ownerMatch) return false;
 
-    // 2. Deprecated Check
     if (!showDeprecated && m.is_deprecated) return false;
 
-    // 3. Type Check (Multi-select)
     const isModpack = m.categories?.includes("Modpacks");
     const modType = isModpack ? "Modpacks" : "Mods";
     if (selectedTypes.length > 0 && !selectedTypes.includes(modType)) return false;
 
-    // 4. Category Check (Multi-select: Mod must have at least ONE of the selected categories)
     if (selectedCategories.length > 0) {
       const hasMatch = selectedCategories.some(cat => m.categories?.includes(cat));
       if (!hasMatch) return false;
@@ -215,23 +200,19 @@ $: filteredInstalledMods = installedMods.filter(m => {
     const ownerMatch = (m.authorName || m.author || '').toLowerCase().includes(installedSearch.toLowerCase());
     if (!nameMatch && !ownerMatch) return false;
 
-    // FIX: Match using full_name or extract the pure package name fallback
     const globalMeta = $globalMods.find(g => 
       g.full_name?.toLowerCase() === m.name?.toLowerCase() ||
       (g.name?.toLowerCase() === m.name?.split('-').slice(1).join('-').toLowerCase() && g.owner?.toLowerCase() === (m.authorName || m.author)?.toLowerCase())
     );
     
-    // Deprecated
     const isDeprecated = globalMeta ? globalMeta.is_deprecated : false;
     if (!showDeprecated && isDeprecated) return false;
 
-    // Type Check
     const categories = globalMeta?.categories || [];
     const isModpack = categories.includes("Modpacks");
     const modType = isModpack ? "Modpacks" : "Mods";
     if (selectedTypes.length > 0 && !selectedTypes.includes(modType)) return false;
     
-    // Category Check
     if (selectedCategories.length > 0) {
       const hasMatch = selectedCategories.some(cat => categories.includes(cat));
       if (!hasMatch) return false;
@@ -239,7 +220,6 @@ $: filteredInstalledMods = installedMods.filter(m => {
 
     return true;
   }).sort((a, b) => {
-    // FIX: Match global meta for sorting accurately
     const globalA = $globalMods.find(g => g.full_name?.toLowerCase() === a.name?.toLowerCase());
     const globalB = $globalMods.find(g => g.full_name?.toLowerCase() === b.name?.toLowerCase());
 
@@ -257,7 +237,6 @@ $: filteredInstalledMods = installedMods.filter(m => {
     return 0;
   });
 
-// --- Installed Mod Actions ---
   function handleWebsiteClick(mod: any, globalMeta: any) {
     const author = globalMeta?.owner || mod.authorName;
     const name = globalMeta?.name || mod.name.split("-").slice(1).join("-");
@@ -275,11 +254,10 @@ async function uninstallMod(mod: any) {
           gameName: $selectedGame.id,
           profileName: $selectedProfile,
           modName: mod.name,
-          author: mod.authorName, // Changed from authorName to author
+          author: mod.authorName,
           modId: mod.name
         });
         
-        // Refresh the list with the correct matching argument names
         const res = await invoke('get_installed_mods', { 
           projectName: "RogueModManager",
           gameName: $selectedGame.id, 
@@ -319,7 +297,7 @@ async function syncLoader() {
       projectName: "RogueModManager",
       gameName: $selectedGame.id,
       profileName: $selectedProfile,
-      executablePath: $selectedGame.executablePath   // now guaranteed to be string
+      executablePath: $selectedGame.executablePath
     });
   } catch (e) {
     console.error("Failed to sync loader:", e);
@@ -412,11 +390,9 @@ async function checkForUpdates() {
                 (m.name?.toLowerCase() === localMod.name?.toLowerCase() && m.owner?.toLowerCase() === localMod.authorName?.toLowerCase())
             );
 
-            // Navigate into Thunderstore's nested version array to get the real data
             const latestVerData = remoteMod?.versions?.[0] || remoteMod?.latest;
 
             if (remoteMod && latestVerData && latestVerData.version_number) {
-                // Parse strings into comparable numbers
                 const [rMajor, rMinor, rPatch] = latestVerData.version_number.split('.').map(Number);
                 const { major, minor, patch } = localMod.versionNumber;
 
@@ -435,7 +411,6 @@ async function checkForUpdates() {
             }
         }
 
-        // Populate the global update store to instantly trigger the UI banner
         modsRequiringUpdate.set(outdated);
     } catch (err) {
         console.error("Failed to parse mod updates:", err);
@@ -450,19 +425,18 @@ async function updateAllMods() {
         try {
             const fullName = `${mod.authorName}-${mod.name}-${mod.latest_version}`;
             
-            // Look inside your updateAllMods() loop and swap these two fields:
 await invoke("install_mod", {
     appHandle: undefined,
     downloadUrl: mod.download_url,
     projectName: "RogueModManager",
-    gameName: $selectedGame.id, // FIX: .slug -> .id
+    gameName: $selectedGame.id,
     profileName: $selectedProfile,
     modName: fullName
 });
 
 await invoke("register_mod_install", {
     projectName: "RogueModManager",
-    gameName: $selectedGame.id, // FIX: .slug -> .id
+    gameName: $selectedGame.id,
     profileName: $selectedProfile,
     modId: mod.name,
     author: mod.authorName,
@@ -475,7 +449,6 @@ await invoke("register_mod_install", {
         }
     }
 
-    // Force refresh local lists and clear out the active update banner
     await checkForUpdates();
 	
 	const res = await invoke("get_installed_mods", {

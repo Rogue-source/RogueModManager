@@ -787,10 +787,6 @@ body {
 	background: transparent;
 }
 
-/* =========================
-   EXPANDABLE CONFIG ITEMS
-========================= */
-
 .config-entry {
 	display: flex;
 	flex-direction: column;
