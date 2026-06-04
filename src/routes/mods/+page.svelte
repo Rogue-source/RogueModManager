@@ -6,6 +6,8 @@
   import "$lib/PageStyles/ModPage.css";
   import { open as openUrl } from '@tauri-apps/plugin-shell';
   import DOMPurify from 'dompurify';
+  import { supabase } from '$lib/supabase';
+  import { currentUser } from '$lib/store';
   
 import { 
     selectedGame,
@@ -37,6 +39,11 @@ import {
   let downloadStatus = "";
   let currentPage = 1;
   let modsPerPage = 20;
+  let modComments: any[] = [];
+  let newCommentUsername = "";
+  let newCommentText = "";
+  let isSubmittingComment = false;
+  let isLoadingComments = false;
 
   marked.setOptions({
     breaks: false,
@@ -47,7 +54,6 @@ import {
 	$: if ($focusedMod && $activeModTab === 'installed') {
       fetchInstalledDescription($focusedMod);
   }
-  $: if (modSearch || $activeModTab === 'online') currentPage = 1;
   $: paginatedMods = filteredMods.slice(
     (currentPage - 1) * modsPerPage,
     currentPage * modsPerPage
@@ -65,6 +71,14 @@ $: if ($selectedProfile && $globalMods.length > 0) {
 
   $: if ($focusedMod && $activeModTab === 'online') {
       fetchLiveDownloads($focusedMod.owner, $focusedMod.name);
+  }
+  
+  // Add this reactive declaration inside your script tag
+  $: if ($currentUser) {
+      newCommentUsername = $currentUser.username;
+	  syncUserProfile($currentUser);
+  } else {
+      newCommentUsername = "";
   }
 
   async function fetchLiveDownloads(author: string, modName: string) {
@@ -89,9 +103,9 @@ $: if ($selectedProfile && $globalMods.length > 0) {
     : 'Unknown';
 
   async function openThunderstore() {
-    const url = $focusedMod?.package_url;
-    if (url) await open(url);
-  }
+  const url = $focusedMod?.package_url;
+  if (url) await openUrl(url); // <-- Fix here
+}
   
   let installedMods = [];
 
@@ -120,6 +134,71 @@ $: if (modSearch || installedSearch || selectedTypes.length || filterSort || sel
       selectedTypes = [...selectedTypes, type];
     }
   }
+  
+async function deleteComment(commentId: string) {
+      if (!$currentUser) return;
+      
+      const confirmDelete = confirm("Are you sure you want to delete this comment?");
+      if (!confirmDelete) return;
+
+      // Passing your immutable Discord ID securely to the backend RPC handler
+      const { error } = await supabase.rpc('delete_mod_comment', {
+          comment_id: commentId,
+          requesting_discord_id: $currentUser.discord_id
+      });
+
+      if (!error) {
+          const modId = `${$focusedMod.owner}-${$focusedMod.name}`;
+          await loadComments(modId);
+      } else {
+          alert(`Deletion failed: ${error.message}`);
+      }
+  }
+  
+async function loadComments(modId: string) {
+    isLoadingComments = true;
+    // The foreign key join syntax '*, profiles(*)' fetches the comment and matches the profile details
+    const { data, error } = await supabase
+        .from('mod_comments')
+        .select('*, profiles(*)')
+        .eq('mod_id', modId)
+        .order('created_at', { ascending: false }); 
+
+    if (!error && data) {
+        modComments = data;
+    } else {
+        console.error("Failed to load comments", error);
+        modComments = [];
+    }
+    isLoadingComments = false;
+}
+
+async function submitComment() {
+  if (!newCommentText.trim() || !$currentUser || !$focusedMod) return;
+
+  const modId = `${$focusedMod.owner}-${$focusedMod.name}`;
+  isSubmittingComment = true; 
+
+  const { data, error } = await supabase
+    .from('mod_comments')
+    .insert([
+      {
+        mod_id: modId, 
+        user_id: $currentUser.id,      // Maps to user_id (text)
+        content: newCommentText.trim()  // Maps to content (text) from image_328dbc.png
+      }
+    ])
+    .select();
+
+  if (!error) {
+    newCommentText = '';
+    await loadComments(modId); 
+  } else {
+    console.error('Error uploading comment:', error);
+    alert(`Database Error: ${error.message}\nDetails: ${error.details}`);
+  }
+  isSubmittingComment = false;
+}
   
   async function fetchInstalledDescription(mod: any) {
       installedDescription = "Loading description...";
@@ -466,6 +545,7 @@ await invoke("register_mod_install", {
     changelogContent = "Loading Changelog...";
     hasChangelog = false;
 	showDownloadModal = false;
+	loadComments(`${mod.owner}-${mod.name}`);
 	
 	if (mod.versions && mod.versions.length > 0) {
       selectedVersion = mod.versions[0].version_number;
@@ -524,6 +604,16 @@ await invoke("register_mod_install", {
       downloadStatus = "";
     }
   }
+  
+async function syncUserProfile(user) {
+  const { error } = await supabase
+    .from('profiles')
+    .upsert({
+      id: user.id,
+      username: user.username,
+      display_name: user.user_metadata?.custom_claims?.global_name || user.user_metadata?.full_name || user.username
+    });
+}
 
 async function downloadMod(targetMod = null) {
     if (targetMod instanceof Event) {
@@ -815,6 +905,9 @@ if (!modToUse.owner && pkgName.includes('-')) {
             <button class:active={$detailTab === 'DEPS'} on:click={() => detailTab.set('DEPS')}>
               Dependencies ({$focusedMod.versions[0]?.dependencies?.length || 0})
             </button>
+			<button class:active={$detailTab === 'COMMENTS'} on:click={() => detailTab.set('COMMENTS')}>
+              Comments ({modComments.length})
+            </button>
           </nav>
         </div>
 
@@ -837,6 +930,71 @@ if (!modToUse.owner && pkgName.includes('-')) {
                 <li>{dep}</li>
               {/each}
             </ul>
+{:else if $detailTab === 'COMMENTS'}
+            <div class="comments-section-container">
+              
+              {#if !$currentUser}
+                <div class="anonymous-login-prompt">
+                  <p class="prompt-text">Login to comment</p>
+                </div>
+              {:else}
+                <div class="auth-comment-form">
+                  <div class="user-posting-as">
+                    Posting as: <span class="highlight-user">{$currentUser.username}</span>
+                  </div>
+                  
+                  <textarea
+                    placeholder="Post your comment..."
+                    bind:value={newCommentText}
+                    class="comment-textarea"
+                    rows="4"
+                  ></textarea>
+
+                  <div class="form-actions">
+                    <button 
+                      on:click={submitComment} 
+                      disabled={!newCommentText.trim() || isSubmittingComment} 
+                      class="submit-comment-btn"
+                    >
+                      {isSubmittingComment ? 'Posting...' : 'Post Comment'}
+                    </button>
+                  </div>
+                </div>
+              {/if}
+
+              <hr class="section-divider" />
+
+              <div class="comments-list">
+                {#if isLoadingComments}
+                  <p style="color: #888; text-align: center;">Loading comments...</p>
+                {:else if modComments.length === 0}
+                  <p style="color: #888; text-align: center; font-style: italic;">No comments yet. Be the first!</p>
+                {:else}
+                  {#each modComments as comment}
+                    <div class="comment-card">
+                      <div class="comment-header">
+                        <div>
+                          <strong>{comment.profiles?.display_name || comment.profiles?.username || 'Unknown'}</strong>
+                          <span class="comment-date">{new Date(comment.created_at).toLocaleDateString()}</span>
+                        </div>
+                        
+                        {#if $currentUser && ($currentUser.discord_id === '591735141735464960')}
+                          <button 
+                            class="comment-delete-btn" 
+                            on:click={() => deleteComment(comment.id)}
+                            title="Delete Comment"
+                          >
+                            🗑️ Delete
+                          </button>
+                        {/if}
+                      </div>
+                      <div class="comment-body">{comment.content}</div>
+                    </div>
+                  {/each}
+                {/if}
+              </div>
+              
+            </div>
           {/if}
         </div>
       </div>

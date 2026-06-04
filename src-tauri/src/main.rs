@@ -11,6 +11,7 @@ use std::io::Write;
 use zip::write::FileOptions;
 use base64::{engine::general_purpose, Engine as _};
 use std::path::PathBuf;
+use tauri_plugin_deep_link::DeepLinkExt;
 
 #[derive(Serialize)]
 pub struct ProfileMod {
@@ -731,6 +732,18 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init()) 
         .plugin(tauri_plugin_dialog::init())
+		.plugin(tauri_plugin_deep_link::init())
+		.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+      if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_focus();
+      }
+    }))
+	.setup(|app| {
+            #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+            app.deep_link().register_all()?;
+            
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             install_mod,
             get_installed_mods,

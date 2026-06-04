@@ -22,7 +22,8 @@
     }
   },
 	"plugins": {
-		"fs": {}
+		"fs": {},
+		"deep-link": { "desktop": { "schemes": ["roguemm"]}}
 	},
   "bundle": {
     "active": true,

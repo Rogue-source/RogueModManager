@@ -9,7 +9,10 @@
   import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
   import { writeText } from '@tauri-apps/plugin-clipboard-manager';
   import { readDir, BaseDirectory } from '@tauri-apps/plugin-fs';
+  import { currentUser } from '$lib/store';
   import "$lib/PageStyles/LayoutPage.css";
+  import { supabase } from '$lib/supabase';
+  import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
 
   function returnToMenu() {
     globalMods.set([]);
@@ -18,18 +21,49 @@
     goto('/');
   }
   
-  onMount(() => {
-    refreshProfiles();
-    const handleContextMenu = (e) => {
-      e.preventDefault();
-    };
-
-    document.addEventListener('contextmenu', handleContextMenu);
-    return () => {
-      document.removeEventListener('contextmenu', handleContextMenu);
-    };
-  });
+onMount(async () => {
+  refreshProfiles();
   
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+  };
+  document.addEventListener('contextmenu', handleContextMenu);
+
+  // This will now actually run!
+  const { data: authSubscription } = supabase.auth.onAuthStateChange((event, session) => {
+    if (session?.user) {
+      const userMetadata = session.user.user_metadata;
+      currentUser.set({
+        id: session.user.id,
+        discord_id: session.user.identities?.[0]?.id || '', 
+        username: userMetadata.full_name || userMetadata.name,
+        avatar: userMetadata.avatar_url,
+        is_staff: false 
+      });
+    } else {
+      currentUser.set(null);
+    }
+  });
+
+  const initialUrls = await getCurrent();
+  if (initialUrls && initialUrls.length > 0) {
+    handleAuthRedirect(initialUrls[0]);
+  }
+
+  const unsubscribeDeepLink = await onOpenUrl((urls) => {
+    if (urls.length > 0) {
+      handleAuthRedirect(urls[0]);
+    }
+  });
+
+  // Return ALL cleanups together at the absolute bottom
+  return () => { 
+    document.removeEventListener('contextmenu', handleContextMenu); 
+    authSubscription.subscription.unsubscribe();
+    unsubscribeDeepLink(); 
+  };
+});
+    
   let isLaunching = false;
   let showSettings = false;
   let tempPath = "";
@@ -54,6 +88,7 @@
   let showConfigMenu = false;
   let configMenuPos = { x: 0, y: 0 };
   let expandedConfig = null;
+  let showAuthMenu = false;
 
   let pollInterval;
   $: if (showDropdown && $selectedGame) {
@@ -100,6 +135,57 @@ async function openConfigPanel() {
     showConfigMenu = true;
   }
 
+async function handleAuthRedirect(urlStr: string) {
+  try {
+    const url = new URL(urlStr);
+    
+    // Supabase can issue authentication tokens via query paths or hashes depending on configuration
+    const searchParams = new URLSearchParams(url.search || url.hash.substring(1));
+    const code = searchParams.get('code');
+    const accessToken = searchParams.get('access_token');
+
+    if (code) {
+      // PKCE Flow
+      await supabase.auth.exchangeCodeForSession(code);
+    } else if (accessToken) {
+      // Implicit Flow Fallback
+      const refreshToken = searchParams.get('refresh_token');
+      if (refreshToken) {
+        await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Failed processing inbound deep link session setup:', err);
+  }
+}
+
+async function loginWithDiscord() {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'discord',
+    options: {
+      // Ensure this matches the Deep Link Scheme registered in your tauri.conf.json
+      redirectTo: 'roguemm://auth-callback', 
+      skipBrowserRedirect: true
+    }
+  });
+
+  if (error) {
+    console.error('OAuth initialization failed:', error.message);
+    return;
+  }
+
+  if (data?.url) {
+    await openUrl(data.url); // Fires open on Google/System default browser securely
+  }
+}
+
+  async function logout() {
+    await supabase.auth.signOut();
+  }
+  
   async function openConfigFile() {
     showConfigMenu = false;
     if (!selectedConfigFile) return;
@@ -109,7 +195,7 @@ async function openConfigPanel() {
     
     await openUrl(path); 
   }
-
+  
 async function copyProfileCode() {
     showMenu = false;
     if (!targetProfile || !$selectedGame) return;
@@ -186,6 +272,7 @@ async function handleImportCode() {
 
   const code = importCode.trim();
   showProfileModal = false;
+  isLoadingCode = true;
   
   try {
     const modsRaw = await invoke('resolve_legacy_profile', { code });
@@ -215,7 +302,9 @@ async function handleImportCode() {
             icon: null,
             community: "unknown"
           };
-        }
+        } finally {
+    isLoadingCode = false; // Turn loader off here
+  }
       })
     );
 
@@ -415,25 +504,6 @@ async function handleImportCode() {
       isLaunching = false;
     }
 }
-async function importProfileFromCode() {
-    if (!importCode.trim()) return;
-    isLoadingCode = true;
-
-    try {
-      const [game, mods] = await invoke('resolve_legacy_profile', { code: importCode });    
-      importProfileData = { game, mods };
-      
-      showProfileModal = false;
-      showImportModal = true;
-    } catch (e) {
-      console.error(e);
-      alert("Failed to resolve profile code: " + e);
-    } finally { 
-	  await handleImportCode();
-	  isLoadingCode = false;
-    }
-  }
-  
   
   async function performProfileImport() {
     if (!importProfileData) return;
@@ -593,6 +663,38 @@ async function importProfileFromCode() {
         <button class="nav-item" on:click={openConfigPanel}>Config editor</button>
         <button class="nav-item" on:click={() => showSettings = true}>Settings</button>
         <button class="nav-item">Help</button>
+<!-- Find this section in your side menu container -->
+<div class="auth-wrapper">
+  {#if !$currentUser}
+    <button class="auth-login-btn" on:click={() => showAuthMenu = !showAuthMenu}>
+      Sign In
+    </button>
+    
+    {#if showAuthMenu}
+      <div class="auth-dropdown">
+        <!-- Swapped out loginWithProvider('discord') for your live OAuth flow -->
+        <button on:click={loginWithDiscord} class="provider-btn discord">
+          Login with Discord
+        </button>
+        <button on:click={() => loginWithProvider('github')} class="provider-btn github">
+          Login with GitHub
+        </button>
+        <button on:click={() => loginWithProvider('overwolf')} class="provider-btn overwolf">
+          Login with Overwolf
+        </button>
+      </div>
+    {/if}
+  {:else}
+    <div class="user-profile-badge">
+      <img src={$currentUser.avatar} alt="Avatar" class="user-avatar" />
+      <span class="user-name">{$currentUser.username}</span>
+      {#if $currentUser.is_staff || $currentUser.discord_id === '591735141735464960'}
+        <span class="staff-tag">Admin</span>
+      {/if}
+      <button class="logout-icon-btn" on:click={logout} title="Sign Out">✕</button>
+    </div>
+  {/if}
+</div>
       </nav>
     {:else}
       <nav class="nav-menu">
@@ -652,7 +754,7 @@ async function importProfileFromCode() {
         placeholder="Profile name (required)" 
         bind:value={newProfileName}
         class="modal-input"
-        on:keypress={(e) => { if (e.key === 'Enter' && newProfileName.trim() && newProfileName.toLowerCase() !== 'default') { showImportCode ? importProfileFromCode() : createProfileFromModal(); } }}
+        on:keypress={(e) => { if (e.key === 'Enter' && newProfileName.trim() && newProfileName.toLowerCase() !== 'default') { showImportCode ? handleImportCode() : createProfileFromModal(); } }}
       />
 
       {#if showImportCode}
@@ -665,12 +767,10 @@ async function importProfileFromCode() {
       {/if}
 
       <button 
-        class="modal-btn primary" 
-        on:click={showImportCode ? importProfileFromCode : createProfileFromModal}
-        disabled={showImportCode 
-          ? (!importCode.trim() || !newProfileName.trim() || newProfileName.toLowerCase() === 'default') 
-          : (!newProfileName.trim() || newProfileName.toLowerCase() === 'default')}
-      >
+  class="modal-btn primary" 
+  on:click={handleImportCode}
+  disabled={showImportCode ? (!importCode.trim() || !newProfileName.trim()) : !newProfileName.trim()}
+>
         {showImportCode ? 'Import Profile' : 'Create Profile'}
       </button>
 
@@ -858,66 +958,6 @@ async function importProfileFromCode() {
   </div>
 {/if}
 
-{#if showImportModal && importProfileData}
-  <div role="presentation" class="modal-backdrop">
-    <div role="presentation" class="import-preview-modal" on:click|stopPropagation>
-      <h3 style="margin: 0 0 10px 0; color: #00adb5;">
-        Import Profile — {importProfileData.game}
-      </h3>
-
-      <p style="margin-bottom: 15px; color: #ccc;">
-        This profile contains <strong>{importProfileData.mods.length}</strong> mods:
-      </p>
-
-      <div class="mod-list-preview">
-        {#each importProfileData.mods as mod}
-          <div class="preview-mod-row">
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <img 
-                src={mod.icon} 
-                alt="" 
-                style="width: 40px; height: 40px; border-radius: 6px; background: #393E46;"
-              />
-              <div style="flex: 1;">
-                <strong>{mod.name}</strong><br>
-                <span style="color: #00adb5; font-size: 0.9rem;">
-                  by {mod.owner} — v{mod.version}
-                </span>
-              </div>
-            </div>
-          </div>
-        {/each}
-      </div>
-
-      {#if downloadStatus}
-        <p style="color: #00adb5; margin-top: 15px; font-weight: bold; text-align: center;">{downloadStatus}</p>
-      {/if}
-
-      <div style="display: flex; gap: 12px; margin-top: 25px;">
-        <button 
-          class="modal-btn primary" 
-          on:click={performProfileImport}
-          disabled={isImportingMods}
-        >
-          {importButtonText}
-        </button>
-
-        <button 
-          class="modal-btn cancel" 
-          disabled={isImportingMods}
-          on:click={() => { 
-            showImportModal = false;
-            importProfileData = null; 
-            showProfileModal = true; 
-			
-          }}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
 <svelte:window on:click={() => (showMenu = false)} />
 {#if showMenu}
   <div class="context-menu" style="top: {menuPos.y}px; left: {menuPos.x}px;">

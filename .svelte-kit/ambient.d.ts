@@ -38,6 +38,7 @@
  * The above values will be the same _even if_ different values for `ENVIRONMENT` or `PUBLIC_BASE_URL` are set at runtime, as they are statically replaced in your code with their build time values.
  */
 declare module '$env/static/private' {
+	export const ACSetupSvcPort: string;
 	export const ALLUSERSPROFILE: string;
 	export const APPDATA: string;
 	export const COLOR: string;
@@ -46,9 +47,13 @@ declare module '$env/static/private' {
 	export const COMPUTERNAME: string;
 	export const ComSpec: string;
 	export const DriverData: string;
-	export const DXSDK_DIR: string;
 	export const EDITOR: string;
-	export const FargoDataPath: string;
+	export const EFC_6648_1262719628: string;
+	export const EFC_6648_1592913036: string;
+	export const EFC_6648_2283032206: string;
+	export const EFC_6648_2946480783: string;
+	export const EFC_6648_3789132940: string;
+	export const EFC_6648_4126798990: string;
 	export const FPS_BROWSER_APP_PROFILE_STRING: string;
 	export const FPS_BROWSER_USER_PROFILE_STRING: string;
 	export const HOME: string;
@@ -57,10 +62,6 @@ declare module '$env/static/private' {
 	export const INIT_CWD: string;
 	export const LOCALAPPDATA: string;
 	export const LOGONSERVER: string;
-	export const NDI_RUNTIME_DIR_V2: string;
-	export const NDI_RUNTIME_DIR_V3: string;
-	export const NDI_RUNTIME_DIR_V4: string;
-	export const NDI_RUNTIME_DIR_V5: string;
 	export const NODE: string;
 	export const NODE_ENV: string;
 	export const NODE_EXE: string;
@@ -87,6 +88,7 @@ declare module '$env/static/private' {
 	export const NPM_PREFIX_JS: string;
 	export const NPM_PREFIX_NPM_CLI_JS: string;
 	export const NUMBER_OF_PROCESSORS: string;
+	export const OneDrive: string;
 	export const OS: string;
 	export const Path: string;
 	export const PATHEXT: string;
@@ -100,10 +102,13 @@ declare module '$env/static/private' {
 	export const PROMPT: string;
 	export const PSModulePath: string;
 	export const PUBLIC: string;
+	export const RlsSvcPort: string;
+	export const rustup: string;
 	export const SESSIONNAME: string;
 	export const SystemDrive: string;
 	export const SystemRoot: string;
 	export const TAURI_CLI_VERBOSITY: string;
+	export const TAURI_DEEP_LINK_PLUGIN_CONFIG: string;
 	export const TAURI_ENV_ARCH: string;
 	export const TAURI_ENV_DEBUG: string;
 	export const TAURI_ENV_FAMILY: string;
@@ -118,7 +123,6 @@ declare module '$env/static/private' {
 	export const USERNAME: string;
 	export const USERPROFILE: string;
 	export const windir: string;
-	export const ZES_ENABLE_SYSMAN: string;
 }
 
 /**
@@ -205,6 +209,7 @@ declare module '$env/static/public' {
  */
 declare module '$env/dynamic/private' {
 	export const env: {
+		ACSetupSvcPort: string;
 		ALLUSERSPROFILE: string;
 		APPDATA: string;
 		COLOR: string;
@@ -213,9 +218,13 @@ declare module '$env/dynamic/private' {
 		COMPUTERNAME: string;
 		ComSpec: string;
 		DriverData: string;
-		DXSDK_DIR: string;
 		EDITOR: string;
-		FargoDataPath: string;
+		EFC_6648_1262719628: string;
+		EFC_6648_1592913036: string;
+		EFC_6648_2283032206: string;
+		EFC_6648_2946480783: string;
+		EFC_6648_3789132940: string;
+		EFC_6648_4126798990: string;
 		FPS_BROWSER_APP_PROFILE_STRING: string;
 		FPS_BROWSER_USER_PROFILE_STRING: string;
 		HOME: string;
@@ -224,10 +233,6 @@ declare module '$env/dynamic/private' {
 		INIT_CWD: string;
 		LOCALAPPDATA: string;
 		LOGONSERVER: string;
-		NDI_RUNTIME_DIR_V2: string;
-		NDI_RUNTIME_DIR_V3: string;
-		NDI_RUNTIME_DIR_V4: string;
-		NDI_RUNTIME_DIR_V5: string;
 		NODE: string;
 		NODE_ENV: string;
 		NODE_EXE: string;
@@ -254,6 +259,7 @@ declare module '$env/dynamic/private' {
 		NPM_PREFIX_JS: string;
 		NPM_PREFIX_NPM_CLI_JS: string;
 		NUMBER_OF_PROCESSORS: string;
+		OneDrive: string;
 		OS: string;
 		Path: string;
 		PATHEXT: string;
@@ -267,10 +273,13 @@ declare module '$env/dynamic/private' {
 		PROMPT: string;
 		PSModulePath: string;
 		PUBLIC: string;
+		RlsSvcPort: string;
+		rustup: string;
 		SESSIONNAME: string;
 		SystemDrive: string;
 		SystemRoot: string;
 		TAURI_CLI_VERBOSITY: string;
+		TAURI_DEEP_LINK_PLUGIN_CONFIG: string;
 		TAURI_ENV_ARCH: string;
 		TAURI_ENV_DEBUG: string;
 		TAURI_ENV_FAMILY: string;
@@ -285,7 +294,6 @@ declare module '$env/dynamic/private' {
 		USERNAME: string;
 		USERPROFILE: string;
 		windir: string;
-		ZES_ENABLE_SYSMAN: string;
 		[key: `PUBLIC_${string}`]: undefined;
 		[key: `${string}`]: string | undefined;
 	}

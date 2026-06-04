@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 
+export const currentUser = writable<any>(null);
 export const activeModTab = writable('installed');
 export const selectedGame = writable<{id: string, name: string, slug: string, banner: string} | null>(null);
 export const globalMods = writable<any[]>([]);

@@ -68,9 +68,9 @@
       "_root.js"
     ]
   },
-  "_store.js": {
-    "file": "chunks/store.js",
-    "name": "store",
+  "_supabase.js": {
+    "file": "chunks/supabase.js",
+    "name": "supabase",
     "imports": [
       "_index.js"
     ]
@@ -130,10 +130,10 @@
       "_utils.js",
       "_root.js",
       "_state.svelte.js",
-      "_store.js"
+      "_supabase.js"
     ],
     "css": [
-      "_app/immutable/assets/_layout.D6l9yMY-.css"
+      "_app/immutable/assets/_layout.Dyv4KZNx.css"
     ]
   },
   "src/routes/+layout.ts": {
@@ -165,10 +165,10 @@
     "isEntry": true,
     "imports": [
       "_renderer.js",
-      "_store.js"
+      "_supabase.js"
     ],
     "css": [
-      "_app/immutable/assets/_page.DqHfjLpW.css"
+      "_app/immutable/assets/_page.pZL-1XUc.css"
     ]
   }
 }
