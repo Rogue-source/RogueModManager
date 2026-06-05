@@ -29,17 +29,38 @@ onMount(async () => {
   };
   document.addEventListener('contextmenu', handleContextMenu);
 
-  // This will now actually run!
-  const { data: authSubscription } = supabase.auth.onAuthStateChange((event, session) => {
+const { data: authSubscription } = supabase.auth.onAuthStateChange((event, session) => {
     if (session?.user) {
       const userMetadata = session.user.user_metadata;
+      
+      const discordId = userMetadata.provider_id || session.user.identities?.[0]?.id || ''; 
+
       currentUser.set({
         id: session.user.id,
-        discord_id: session.user.identities?.[0]?.id || '', 
+        discord_id: discordId, 
         username: userMetadata.full_name || userMetadata.name,
         avatar: userMetadata.avatar_url,
-        is_staff: false 
+        is_staff: false
       });
+
+      supabase.storage
+        .from('moderation')
+        .download('staff.txt')
+        .then(async ({ data, error }) => {
+          if (!error && data) {
+            const fileText = await data.text();
+            const staffList = fileText
+              .split('\n')
+              .map(line => line.replace('\r', '').trim())
+              .filter(line => line.length > 0);
+
+            if (staffList.includes(discordId)) {
+              currentUser.update(user => user ? { ...user, is_staff: true } : null);
+            }
+          }
+        })
+        .catch(err => console.error("Failed loading staff clearance asset:", err));
+        
     } else {
       currentUser.set(null);
     }
@@ -56,7 +77,6 @@ onMount(async () => {
     }
   });
 
-  // Return ALL cleanups together at the absolute bottom
   return () => { 
     document.removeEventListener('contextmenu', handleContextMenu); 
     authSubscription.subscription.unsubscribe();
@@ -89,6 +109,7 @@ onMount(async () => {
   let configMenuPos = { x: 0, y: 0 };
   let expandedConfig = null;
   let showAuthMenu = false;
+  let lastProcessedCode = '';
 
   let pollInterval;
   $: if (showDropdown && $selectedGame) {
@@ -136,37 +157,37 @@ async function openConfigPanel() {
   }
 
 async function handleAuthRedirect(urlStr: string) {
-  try {
-    const url = new URL(urlStr);
-    
-    // Supabase can issue authentication tokens via query paths or hashes depending on configuration
-    const searchParams = new URLSearchParams(url.search || url.hash.substring(1));
-    const code = searchParams.get('code');
-    const accessToken = searchParams.get('access_token');
+    try {
+      const url = new URL(urlStr);
+      
+      const searchParams = new URLSearchParams(url.search || url.hash.substring(1));
+      const code = searchParams.get('code');
+      const accessToken = searchParams.get('access_token');
 
-    if (code) {
-      // PKCE Flow
-      await supabase.auth.exchangeCodeForSession(code);
-    } else if (accessToken) {
-      // Implicit Flow Fallback
-      const refreshToken = searchParams.get('refresh_token');
-      if (refreshToken) {
-        await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken
-        });
+      if (code) {
+        if (code === lastProcessedCode) return;
+        lastProcessedCode = code;
+        
+        // PKCE Flow
+        await supabase.auth.exchangeCodeForSession(code);
+      } else if (accessToken) {
+        const refreshToken = searchParams.get('refresh_token');
+        if (refreshToken) {
+          await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+        }
       }
+    } catch (err) {
+      console.error('Failed processing inbound deep link session setup:', err);
     }
-  } catch (err) {
-    console.error('Failed processing inbound deep link session setup:', err);
   }
-}
 
 async function loginWithDiscord() {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'discord',
     options: {
-      // Ensure this matches the Deep Link Scheme registered in your tauri.conf.json
       redirectTo: 'roguemm://auth-callback', 
       skipBrowserRedirect: true
     }
@@ -178,7 +199,7 @@ async function loginWithDiscord() {
   }
 
   if (data?.url) {
-    await openUrl(data.url); // Fires open on Google/System default browser securely
+    await openUrl(data.url);
   }
 }
 
@@ -303,7 +324,7 @@ async function handleImportCode() {
             community: "unknown"
           };
         } finally {
-    isLoadingCode = false; // Turn loader off here
+    isLoadingCode = false;
   }
       })
     );
@@ -688,9 +709,9 @@ async function handleImportCode() {
     <div class="user-profile-badge">
       <img src={$currentUser.avatar} alt="Avatar" class="user-avatar" />
       <span class="user-name">{$currentUser.username}</span>
-      {#if $currentUser.is_staff || $currentUser.discord_id === '591735141735464960'}
-        <span class="staff-tag">Admin</span>
-      {/if}
+      {#if $currentUser.is_staff}
+		<span class="staff-tag">Admin</span>
+	{/if}
       <button class="logout-icon-btn" on:click={logout} title="Sign Out">✕</button>
     </div>
   {/if}

@@ -41,6 +41,7 @@ import {
   let modsPerPage = 20;
   let modComments: any[] = [];
   let newCommentUsername = "";
+  let blockedPatterns: string[] = [];
   let newCommentText = "";
   let isSubmittingComment = false;
   let isLoadingComments = false;
@@ -63,6 +64,10 @@ $: if ($selectedProfile && $globalMods.length > 0) {
     checkForUpdates();
 }
 
+$: userCommentCount = ($currentUser && modComments) 
+  ? modComments.filter(c => c.user_id === $currentUser.id).length 
+  : 0;
+
   $: if (modSearch || $activeModTab === 'online') currentPage = 1;
 
   activeModTab.subscribe(() => focusedMod.set(null));
@@ -73,13 +78,31 @@ $: if ($selectedProfile && $globalMods.length > 0) {
       fetchLiveDownloads($focusedMod.owner, $focusedMod.name);
   }
   
-  // Add this reactive declaration inside your script tag
   $: if ($currentUser) {
       newCommentUsername = $currentUser.username;
 	  syncUserProfile($currentUser);
   } else {
       newCommentUsername = "";
   }
+  
+  onMount(async () => {
+  try {
+    const { data, error } = await supabase
+      .storage
+      .from('moderation')
+      .download('banned.txt');
+
+    if (!error && data) {
+      const fileText = await data.text();
+      blockedPatterns = fileText
+        .split('\n')
+        .map(line => line.replace('\r', '').trim())
+        .filter(line => line.length > 0);
+    }
+  } catch (err) {
+    console.error("Failed loading moderation file from storage:", err);
+  }
+});
 
   async function fetchLiveDownloads(author: string, modName: string) {
       modDownloads = '...';
@@ -104,7 +127,7 @@ $: if ($selectedProfile && $globalMods.length > 0) {
 
   async function openThunderstore() {
   const url = $focusedMod?.package_url;
-  if (url) await openUrl(url); // <-- Fix here
+  if (url) await openUrl(url);
 }
   
   let installedMods = [];
@@ -136,28 +159,26 @@ $: if (modSearch || installedSearch || selectedTypes.length || filterSort || sel
   }
   
 async function deleteComment(commentId: string) {
-      if (!$currentUser) return;
-      
-      const confirmDelete = confirm("Are you sure you want to delete this comment?");
-      if (!confirmDelete) return;
+    if (!$currentUser) return;
+    
+    const confirmDelete = confirm("Are you sure you want to delete this comment?");
+    if (!confirmDelete) return;
 
-      // Passing your immutable Discord ID securely to the backend RPC handler
-      const { error } = await supabase.rpc('delete_mod_comment', {
-          comment_id: commentId,
-          requesting_discord_id: $currentUser.discord_id
-      });
+    const { error } = await supabase
+        .from('mod_comments')
+        .delete()
+        .eq('id', commentId);
 
-      if (!error) {
-          const modId = `${$focusedMod.owner}-${$focusedMod.name}`;
-          await loadComments(modId);
-      } else {
-          alert(`Deletion failed: ${error.message}`);
-      }
-  }
+    if (!error) {
+        const modId = `${$focusedMod.owner}-${$focusedMod.name}`;
+        await loadComments(modId);
+    } else {
+        alert(`Deletion failed: ${error.message}`);
+    }
+}
   
 async function loadComments(modId: string) {
     isLoadingComments = true;
-    // The foreign key join syntax '*, profiles(*)' fetches the comment and matches the profile details
     const { data, error } = await supabase
         .from('mod_comments')
         .select('*, profiles(*)')
@@ -176,6 +197,21 @@ async function loadComments(modId: string) {
 async function submitComment() {
   if (!newCommentText.trim() || !$currentUser || !$focusedMod) return;
 
+  if (userCommentCount >= 3) {
+    alert("Limit reached: You can only post a maximum of 3 comments per mod.");
+    return;
+  }
+
+  if (newCommentText.length > 100) {
+    alert("Comment is too long! Maximum character length is 100.");
+    return;
+  }
+
+  if (!validateCommentContent(newCommentText)) {
+    alert("Comment denied: Links or unauthorized words are blocked.");
+    return;
+  }
+
   const modId = `${$focusedMod.owner}-${$focusedMod.name}`;
   isSubmittingComment = true; 
 
@@ -184,8 +220,8 @@ async function submitComment() {
     .insert([
       {
         mod_id: modId, 
-        user_id: $currentUser.id,      // Maps to user_id (text)
-        content: newCommentText.trim()  // Maps to content (text) from image_328dbc.png
+        user_id: $currentUser.id,      
+        content: newCommentText.trim()  
       }
     ])
     .select();
@@ -195,9 +231,25 @@ async function submitComment() {
     await loadComments(modId); 
   } else {
     console.error('Error uploading comment:', error);
-    alert(`Database Error: ${error.message}\nDetails: ${error.details}`);
+    alert(`Database Error: ${error.message}`);
   }
   isSubmittingComment = false;
+}
+
+function validateCommentContent(text: string): boolean {
+  const cleanText = text.toLowerCase().trim();
+  const words = cleanText.split(/\s+/);
+
+  return !blockedPatterns.some(pattern => {
+    const lowerPattern = pattern.toLowerCase();
+    
+    if (lowerPattern.endsWith('*')) {
+      const prefix = lowerPattern.slice(0, -1);
+      return words.some(word => word.startsWith(prefix));
+    }
+    
+    return words.includes(lowerPattern);
+  });
 }
   
   async function fetchInstalledDescription(mod: any) {
@@ -937,62 +989,70 @@ if (!modToUse.owner && pkgName.includes('-')) {
                 <div class="anonymous-login-prompt">
                   <p class="prompt-text">Login to comment</p>
                 </div>
-              {:else}
-                <div class="auth-comment-form">
-                  <div class="user-posting-as">
-                    Posting as: <span class="highlight-user">{$currentUser.username}</span>
-                  </div>
-                  
-                  <textarea
-                    placeholder="Post your comment..."
-                    bind:value={newCommentText}
-                    class="comment-textarea"
-                    rows="4"
-                  ></textarea>
+             {:else}
+  <div class="auth-comment-form">
+    <div class="comment-form-header">
+      <div class="user-posting-as">
+        Posting as: <span class="highlight-user">{$currentUser.username}</span>
+      </div>
+      <div class="comment-limit-tracker {userCommentCount >= 3 ? 'limit-reached' : ''}">
+        {userCommentCount}/3 comments on this mod
+      </div>
+    </div>
+    
+    <div class="textarea-wrapper">
+      <textarea
+        placeholder="Share your thoughts about this mod..."
+        bind:value={newCommentText}
+        class="comment-textarea"
+        rows="3"
+        maxlength="100"
+      ></textarea>
+      <div class="char-counter {newCommentText.length >= 100 ? 'counter-maxed' : ''}">
+        {newCommentText.length} / 100
+      </div>
+    </div>
 
-                  <div class="form-actions">
-                    <button 
-                      on:click={submitComment} 
-                      disabled={!newCommentText.trim() || isSubmittingComment} 
-                      class="submit-comment-btn"
-                    >
-                      {isSubmittingComment ? 'Posting...' : 'Post Comment'}
-                    </button>
-                  </div>
-                </div>
-              {/if}
+    <div class="form-actions">
+      <button 
+        on:click={submitComment} 
+        disabled={!newCommentText.trim() || isSubmittingComment || userCommentCount >= 3} 
+        class="submit-comment-btn"
+      >
+        {isSubmittingComment ? 'Posting...' : 'Post Comment'}
+      </button>
+    </div>
+  </div>
+{/if}
 
-              <hr class="section-divider" />
+<hr class="section-divider" />
 
-              <div class="comments-list">
-                {#if isLoadingComments}
-                  <p style="color: #888; text-align: center;">Loading comments...</p>
-                {:else if modComments.length === 0}
-                  <p style="color: #888; text-align: center; font-style: italic;">No comments yet. Be the first!</p>
-                {:else}
-                  {#each modComments as comment}
-                    <div class="comment-card">
-                      <div class="comment-header">
-                        <div>
-                          <strong>{comment.profiles?.display_name || comment.profiles?.username || 'Unknown'}</strong>
-                          <span class="comment-date">{new Date(comment.created_at).toLocaleDateString()}</span>
-                        </div>
-                        
-                        {#if $currentUser && ($currentUser.discord_id === '591735141735464960')}
-                          <button 
-                            class="comment-delete-btn" 
-                            on:click={() => deleteComment(comment.id)}
-                            title="Delete Comment"
-                          >
-                            🗑️ Delete
-                          </button>
-                        {/if}
-                      </div>
-                      <div class="comment-body">{comment.content}</div>
-                    </div>
-                  {/each}
-                {/if}
-              </div>
+<div class="comments-list">
+  {#if isLoadingComments}
+    <p style="color: #888; text-align: center;">Loading comments...</p>
+  {:else if modComments.length === 0}
+    <p style="color: #888; text-align: center; font-style: italic;">No comments yet. Be the first!</p>
+  {:else}
+    {#each modComments as comment}
+      <div class="comment-card">
+        <div class="comment-header">
+          <div>
+            <strong>{comment.profiles?.display_name || comment.profiles?.username || 'Unknown'}</strong>
+            <span class="comment-date">{new Date(comment.created_at).toLocaleDateString()}</span>
+          </div>
+          
+          {#if $currentUser && ($currentUser.id === comment.user_id || $currentUser.is_staff)}
+  <button class="comment-delete-btn" on:click={() => deleteComment(comment.id)}>
+    Delete
+  </button>
+{/if}
+        </div>
+        <!-- Fixed schema display element column target -->
+        <div class="comment-body">{comment.content}</div>
+      </div>
+    {/each}
+  {/if}
+</div>
               
             </div>
           {/if}
